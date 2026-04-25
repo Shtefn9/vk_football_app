@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Футбольная Команда</title>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Экран загрузки -->
+        <div id="loading">
+            <h1>⚽ Загрузка...</h1>
+            <p>Подключаемся к ВКонтакте</p>
+        </div>
+
+        <!-- Основное приложение (скрыто до авторизации) -->
+        <div id="app" style="display: none;">
+            <h1>⚽ Моя Команда</h1>
+
+            <!-- Информация о пользователе -->
+            <div class="user-header">
+                <div class="user-name" id="user-name">Загрузка...</div>
+                <div class="user-role" id="user-role">Игрок</div>
+            </div>
+
+            <!-- Навигация -->
+            <div class="nav">
+                <button onclick="showTab('calendar')" id="btn-calendar" class="active">📅 Календарь</button>
+                <button onclick="showTab('stats')" id="btn-stats">📊 Статистика</button>
+                <button onclick="showTab('advice')" id="btn-advice">💡 Советы</button>
+            </div>
+
+            <!-- Вкладка КАЛЕНДАРЬ -->
+            <div id="calendar" class="tab active">
+                <h2>📅 Расписание</h2>
+                <div class="event">
+                    <div class="event-date">📆 15 марта, 19:00</div>
+                    <div class="event-title">Тренировка</div>
+                    <div class="event-location">📍 Стадион "Юность"</div>
+                </div>
+                <div class="event">
+                    <div class="event-date">📆 18 марта, 15:00</div>
+                    <div class="event-title">🏆 Матч со "Спартаком"</div>
+                    <div class="event-location">📍 Поле №3</div>
+                </div>
+            </div>
+
+            <!-- Вкладка СТАТИСТИКА -->
+            <div id="stats" class="tab">
+                <h2>📊 Твоя статистика</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">5</div>
+                        <div class="stat-label">Игр</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">3</div>
+                        <div class="stat-label">Голов</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">2</div>
+                        <div class="stat-label">Пасов</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">78%</div>
+                        <div class="stat-label">Точность</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка СОВЕТЫ -->
+            <div id="advice" class="tab">
+                <h2>💡 Рекомендации</h2>
+                <div class="advice">
+                    <div class="advice-title">⚽ Точность передач: 78%</div>
+                    <div class="advice-text">Неплохо! Но можно лучше. Попробуй упражнение "Квадрат" на тренировках.</div>
+                </div>
+                <div class="advice">
+                    <div class="advice-title">🏃 Посещаемость: 60%</div>
+                    <div class="advice-text">Ты пропускаешь много тренировок. Постарайся быть чаще для лучшей формы!</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация VK Bridge
+        vkBridge.send('VKWebAppInit')
+            .then(() => {
+                console.log('VK Bridge инициализирован');
+                return vkBridge.send('VKWebAppGetUserInfo');
+            })
+            .then((data) => {
+                console.log('Данные пользователя:', data);
+
+                // Отправляем данные на сервер
+                return fetch('/vk-auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        vk_id: data.id,
+                        first_name: data.first_name,
+                        last_name: data.last_name,
+                        photo: data.photo_200
+                    })
+                });
+            })
+            .then(response => response.json())
+            .then(serverData => {
+                // Показываем приложение
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+
+                // Отображаем имя пользователя
+                const userName = serverData.first_name + ' ' + serverData.last_name;
+                document.getElementById('user-name').textContent = userName;
+
+                // Отображаем роль
+                const roleText = serverData.role === 'coach' ? '🎯 Тренер' : '👤 Игрок';
+                document.getElementById('user-role').textContent = roleText;
+            })
+            .catch(error => {
+                console.error('Ошибка авторизации:', error);
+                document.getElementById('loading').innerHTML =
+                    '<h1>❌ Ошибка</h1><p>Не удалось подключиться. Обновите страницу.</p>';
+            });
+    </script>
+    <script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,350 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 420px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    padding: 25px;
+}
+
+h1 {
+    color: #667eea;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+/* ── Кнопки ─────────────────────────────────── */
+
+.btn {
+    display: inline-block;
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.btn-submit {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+}
+
+.btn-submit.btn-secondary {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.btn-submit:hover {
+    opacity: 0.9;
+}
+
+/* ── Формы ──────────────────────────────────── */
+
+.form-container {
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: #555;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e5ebf1;
+    border-radius: 10px;
+    font-size: 15px;
+    color: #333;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+.error-message {
+    background: #ffebee;
+    color: #c62828;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.back-link {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: #667eea;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+/* ── Стартовая страница ─────────────────────── */
+
+.start-container {
+    text-align: center;
+}
+
+.subtitle {
+    color: #666;
+    margin-bottom: 25px;
+}
+
+.option-card {
+    border: 2px solid #e5ebf1;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    text-align: center;
+}
+
+.option-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+.option-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+.option-card h2 {
+    font-size: 18px;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.option-card p {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+/* ── Дашборд ────────────────────────────────── */
+
+.user-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.user-name {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.user-role {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-top: 4px;
+}
+
+.team-info {
+    background: #f8f9ff;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.team-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.join-code {
+    font-size: 14px;
+    color: #555;
+    margin-top: 8px;
+}
+
+.section {
+    margin-bottom: 25px;
+}
+
+.add-event-btn {
+    width: 100%;
+    padding: 10px;
+    background: #f0f4ff;
+    color: #667eea;
+    border: 2px dashed #667eea;
+    border-radius: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    margin-bottom: 15px;
+}
+
+.add-event-form {
+    background: #f8f9ff;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.event {
+    border: 1px solid #e5ebf1;
+    border-radius: 10px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+}
+
+.event-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.event-date {
+    font-size: 13px;
+    color: #667eea;
+}
+
+.event-location {
+    font-size: 13px;
+    color: #888;
+    margin-top: 3px;
+}
+
+.empty-state {
+    color: #999;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+}
+
+/* ── Навигация (вкладки игрока) ─────────────── */
+
+.nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.nav button {
+    flex: 1;
+    padding: 10px 5px;
+    border: 2px solid #e5ebf1;
+    background: white;
+    border-radius: 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.2s;
+}
+
+.nav button.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+}
+
+/* ── Статистика ─────────────────────────────── */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: #f8f9ff;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+}
+
+.advice {
+    background: #f0f4ff;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
+}
+
+.advice-title {
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 6px;
+}
+
+.advice-text {
+    color: #555;
+    font-size: 14px;
+}
+
+/* ── Выход ──────────────────────────────────── */
+
+.logout {
+    display: block;
+    text-align: center;
+    margin-top: 25px;
+    color: #c62828;
+    text-decoration: none;
+    font-size: 14px;
+}

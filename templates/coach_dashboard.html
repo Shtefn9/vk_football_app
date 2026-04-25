@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд тренера</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Тренерский кабинет</h1>
+
+        <div class="user-header">
+            <div class="user-name">{{ user.first_name }} {{ user.last_name }}</div>
+            <div class="user-role">🎯 Тренер</div>
+        </div>
+
+        {% if team %}
+        <div class="team-info">
+            <div class="team-name">{{ team.name }}</div>
+            {% if team.city %}
+            <div style="color:#666;font-size:14px;">📍 {{ team.city }}</div>
+            {% endif %}
+            <div class="join-code">Код для вступления: <strong>{{ team.join_code }}</strong></div>
+        </div>
+        {% endif %}
+
+        <div class="section">
+            <h2>📅 Календарь</h2>
+            <button class="add-event-btn" onclick="toggleForm()">➕ Добавить событие</button>
+
+            <div id="addEventForm" style="display:none; background:#f8f9ff; border-radius:12px; padding:15px; margin-bottom:15px;">
+                <form method="POST" action="/add-event">
+                    <!-- uid передаём чтобы /add-event знал кто тренер -->
+                    <input type="hidden" name="uid" value="{{ uid }}">
+                    <div class="form-group">
+                        <input type="text" name="title" placeholder="Название события" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="datetime-local" name="event_date" required>
+                    </div>
+                    <div class="form-group">
+                        <select name="event_type">
+                            <option value="training">Тренировка</option>
+                            <option value="match">Матч</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" name="location" placeholder="Место проведения">
+                    </div>
+                    <button type="submit" class="btn-submit">Добавить</button>
+                </form>
+            </div>
+
+            {% for event in events %}
+            <div class="event">
+                <div class="event-title">
+                    {% if event.event_type == 'match' %}⚽{% else %}🏃{% endif %}
+                    {{ event.title }}
+                </div>
+                <div class="event-date">{{ event.event_date.strftime('%d.%m.%Y %H:%M') }}</div>
+                {% if event.location %}
+                <div class="event-location">📍 {{ event.location }}</div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="empty-state">Пока нет событий. Добавьте первое!</p>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <h2>👥 Состав команды ({{ players|length }})</h2>
+            {% for player in players %}
+            <div class="event">
+                <div class="event-title">{{ player.first_name }} {{ player.last_name }}</div>
+            </div>
+            {% else %}
+            <p class="empty-state">Игроки ещё не вступили в команду.</p>
+            {% endfor %}
+        </div>
+
+        <a href="/logout" class="logout">🚪 Выйти</a>
+    </div>
+
+    <script>
+        function toggleForm() {
+            var f = document.getElementById('addEventForm');
+            f.style.display = f.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

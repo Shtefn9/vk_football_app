@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Футбольная Команда</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container start-container">
+        <h1>⚽ Моя Команда</h1>
+        <p class="subtitle">Выберите, что хотите сделать</p>
+
+        <div class="option-card" onclick="location.href='/create-team?uid={{ uid }}'">
+            <div class="option-icon">🎯</div>
+            <h2>Создать команду</h2>
+            <p>Станьте тренером и создайте свою команду</p>
+            <span class="btn">Создать</span>
+        </div>
+
+        <div class="option-card" onclick="location.href='/join-team?uid={{ uid }}'">
+            <div class="option-icon">👥</div>
+            <h2>Присоединиться</h2>
+            <p>Вступите в существующую команду по коду</p>
+            <span class="btn btn-secondary">Войти</span>
+        </div>
+    </div>
+</body>
+</html>
