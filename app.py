@@ -152,6 +152,10 @@ def start():
     user = load_session(user_id)
     if not user:
         return redirect(url_for('index'))
+    # Если у пользователя уже есть команда — сразу в дашборд
+    if user.team_id:
+        app.logger.debug(f"start(): user уже в команде → dashboard")
+        return redirect(f'/dashboard?uid={user_id}')
     app.logger.debug(f"start() OK: user_id={user_id}")
     return render_template('start.html', uid=user_id)
 
