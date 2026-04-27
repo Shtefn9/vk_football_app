@@ -38,17 +38,6 @@
             <p style="margin-top:15px;font-size:12px;color:#999;">После модерации вход будет автоматически через VK.</p>
         </div>
 
-        <!-- Экран 3: Успех -->
-        <div id="success" style="display:none;">
-            <div style="font-size:64px;margin-bottom:20px;">✅</div>
-            <h1>Привет, <span id="user-name"></span>!</h1>
-            <p style="color:#666;margin:15px 0;">Авторизация прошла успешно</p>
-            <a id="continue-btn" href="/start" class="btn-submit"
-               style="display:block;text-decoration:none;margin-top:20px;">
-                Продолжить →
-            </a>
-        </div>
-
     </div>
 
     <script>
@@ -93,14 +82,8 @@
                 .then(function(serverData) {
                     console.log('[Auth] Сервер OK. user_id=' + serverData.user_id);
                     clearTimeout(timeoutId);
-
-                    // Передаём uid в URL — обходим проблему с куки во фрейме VK
-                    document.getElementById('continue-btn').href = '/start?uid=' + serverData.user_id;
-                    document.getElementById('user-name').textContent =
-                        serverData.first_name + ' ' + serverData.last_name;
-
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('success').style.display = 'block';
+                    // Сразу редиректим без промежуточного экрана
+                    window.location.href = '/start?uid=' + serverData.user_id;
                 })
                 .catch(function(error) {
                     console.error('[Auth] Ошибка:', error);
