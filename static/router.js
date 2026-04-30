@@ -25,16 +25,20 @@ const Router = {
     navigate: async function(route) {
         console.log('[Router] Navigate to:', route);
 
-        // Показываем индикатор загрузки
-        this.container.innerHTML =
-            '<div style="text-align:center;padding:60px 20px;color:#667eea;">' +
-            '<h2>⚽</h2><p>Загрузка...</p></div>';
+        // Показываем индикатор загрузки только если контейнер пустой
+        if (!this.container.innerHTML.trim()) {
+            this.container.innerHTML =
+                '<div style="text-align:center;padding:60px 20px;color:#667eea;">' +
+                '<h2>⚽</h2><p>Загрузка...</p></div>';
+        } else {
+            this.container.style.opacity = '0.6';
+        }
 
         try {
             const res = await fetch('/api/fragment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ route: route })
+                body: JSON.stringify({ route: route, uid: API.userId })
             });
 
             const result = await res.json();
@@ -42,12 +46,20 @@ const Router = {
             // Сервер просит перейти на другой маршрут
             if (result.redirect) {
                 console.log('[Router] Redirect to:', result.redirect);
+                // Защита от бесконечного цикла
+                if (result.redirect === route) {
+                    console.error('[Router] Цикличный редирект, останавливаем');
+                    this.container.style.opacity = '1';
+                    return;
+                }
+                this.container.style.opacity = '1';
                 return this.navigate(result.redirect);
             }
 
             if (result.error && !result.html) {
                 this.container.innerHTML =
                     '<div style="text-align:center;padding:40px;color:red;">❌ ' + result.error + '</div>';
+                this.container.style.opacity = '1';
                 return;
             }
 
@@ -56,6 +68,7 @@ const Router = {
 
             // Вставляем HTML фрагмента
             this.container.innerHTML = result.html;
+            this.container.style.opacity = '1';
 
             // Выполняем скрипты внутри фрагмента
             var scripts = this.container.querySelectorAll('script');
@@ -76,6 +89,7 @@ const Router = {
             console.error('[Router] Error:', error);
             this.container.innerHTML =
                 '<div style="text-align:center;padding:40px;color:red;">❌ Ошибка соединения</div>';
+            this.container.style.opacity = '1';
         }
     }
 };

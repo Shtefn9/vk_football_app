@@ -15,7 +15,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'football.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'vk_football_secret_2024'
-app.config['SESSION_COOKIE_SECURE'] = False   # True сломает куки на HTTP
+app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
@@ -33,11 +33,24 @@ def add_headers(response):
 # ─── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ─────────────────────────────────────────────────
 
 def get_user():
-    """Получаем пользователя из сессии"""
+    """Получаем пользователя из сессии или из uid в теле запроса"""
     user_id = session.get('user_id')
     if not user_id:
+        body = request.get_json(silent=True) or {}
+        uid = body.get('uid')
+        if uid:
+            try:
+                user_id = int(uid)
+            except (ValueError, TypeError):
+                return None
+    if not user_id:
         return None
-    return db.session.get(User, user_id)
+    user = db.session.get(User, user_id)
+    if user:
+        # Обновляем сессию
+        session['user_id'] = user.id
+        session.modified = True
+    return user
 
 
 # ─── ЕДИНСТВЕННАЯ СТРАНИЦА (SPA shell) ───────────────────────────────────────
@@ -101,7 +114,7 @@ def api_logout():
 
 # ─── API: ДАННЫЕ ──────────────────────────────────────────────────────────────
 
-@app.route('/api/user')
+@app.route('/api/user', methods=['GET', 'POST'])
 def api_user():
     user = get_user()
     if not user:
@@ -202,25 +215,21 @@ def api_add_event():
 
 @app.route('/api/fragment', methods=['POST'])
 def api_fragment():
-    """Отдаёт HTML фрагмент + данные для маршрута"""
     body = request.get_json() or {}
     route = body.get('route', '/')
     user = get_user()
 
-    app.logger.debug(f"Fragment request: route={route}, user={user.id if user else None}")
+    app.logger.debug(f"Fragment: route={route}, user={user.id if user else None}")
 
-    # Авторизация — не требует пользователя
     if route == '/':
         return jsonify({
             'html': render_template('fragments/auth.html'),
             'data': {}
         })
 
-    # Все остальные маршруты требуют авторизации
     if not user:
-        return jsonify({'redirect': '/', 'error': 'unauthorized'})
+        return jsonify({'redirect': '/'})
 
-    # Выбор действия
     if route == '/start':
         if user.team_id:
             return jsonify({'redirect': '/dashboard'})
@@ -229,21 +238,18 @@ def api_fragment():
             'data': {'first_name': user.first_name}
         })
 
-    # Создание команды
     if route == '/create-team':
         return jsonify({
             'html': render_template('fragments/create_team.html'),
             'data': {}
         })
 
-    # Вступление в команду
     if route == '/join-team':
         return jsonify({
             'html': render_template('fragments/join_team.html'),
             'data': {}
         })
 
-    # Дашборд
     if route == '/dashboard':
         team = db.session.get(Team, user.team_id) if user.team_id else None
         events = []
@@ -254,9 +260,24 @@ def api_fragment():
             players = User.query.filter_by(team_id=user.team_id, role='player').all() if user.team_id else []
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code, 'city': team.city} if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
-                'players': [{'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name} for p in players]
+                'team': {
+                    'id': team.id,
+                    'name': team.name,
+                    'join_code': team.join_code,
+                    'city': team.city
+                } if team else None,
+                'events': [{
+                    'id': e.id,
+                    'title': e.title,
+                    'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                    'event_type': e.event_type,
+                    'location': e.location
+                } for e in events],
+                'players': [{
+                    'id': p.id,
+                    'first_name': p.first_name,
+                    'last_name': p.last_name
+                } for p in players]
             }
             return jsonify({
                 'html': render_template('fragments/coach_dashboard.html'),
@@ -278,7 +299,13 @@ def api_fragment():
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name} if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
+                'events': [{
+                    'id': e.id,
+                    'title': e.title,
+                    'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                    'event_type': e.event_type,
+                    'location': e.location
+                } for e in events],
                 'stats': total_stats
             }
             return jsonify({
