@@ -1,0 +1,48 @@
+<div class="container" style="text-align:center; padding:40px 20px;">
+
+    <div id="loading">
+        <h1>⚽ Загрузка...</h1>
+        <p style="color:#666; margin-top:10px;">Подключение к ВКонтакте</p>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    console.log('[Auth] Fragment loaded');
+
+    if (typeof vkBridge === 'undefined') {
+        console.error('[Auth] vkBridge не найден');
+        document.getElementById('loading').innerHTML = '<p style="color:red;">Ошибка: откройте приложение через ВКонтакте</p>';
+        return;
+    }
+
+    vkBridge.send('VKWebAppInit')
+        .then(function() {
+            return vkBridge.send('VKWebAppGetUserInfo');
+        })
+        .then(function(data) {
+            console.log('[Auth] UserInfo OK:', data.first_name);
+            return API.vkAuth({
+                vk_id: data.id,
+                first_name: data.first_name,
+                last_name: data.last_name || '',
+                photo: data.photo_200 || ''
+            });
+        })
+        .then(function(userData) {
+            console.log('[Auth] Авторизован:', userData.first_name);
+            // Сразу переходим без промежуточного экрана
+            if (userData.team_id) {
+                Router.navigate('/dashboard');
+            } else {
+                Router.navigate('/start');
+            }
+        })
+        .catch(function(error) {
+            console.error('[Auth] Ошибка:', error);
+            document.getElementById('loading').innerHTML =
+                '<p style="color:red;">Ошибка авторизации.<br>Попробуйте перезапустить приложение.</p>';
+        });
+})();
+</script>

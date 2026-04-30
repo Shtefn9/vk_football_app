@@ -1,0 +1,118 @@
+<div class="container">
+    <h1>🎯 Тренерский кабинет</h1>
+
+    <div class="user-header">
+        <div class="user-name" id="user-name"></div>
+        <div class="user-role">🎯 Тренер</div>
+    </div>
+
+    <div class="team-info" id="team-info"></div>
+
+    <div class="section">
+        <h2>📅 Календарь</h2>
+        <button class="add-event-btn" id="toggle-form-btn">➕ Добавить событие</button>
+
+        <div id="add-event-form" style="display:none; background:#f8f9ff; border-radius:12px; padding:15px; margin-bottom:15px;">
+            <div class="form-group">
+                <input type="text" id="ev-title" placeholder="Название события" required>
+            </div>
+            <div class="form-group">
+                <input type="datetime-local" id="ev-date" required>
+            </div>
+            <div class="form-group">
+                <select id="ev-type">
+                    <option value="training">Тренировка</option>
+                    <option value="match">Матч</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="text" id="ev-location" placeholder="Место проведения">
+            </div>
+            <button id="save-event-btn" class="btn-submit">Добавить</button>
+        </div>
+
+        <div id="events-list"></div>
+    </div>
+
+    <div class="section">
+        <h2>👥 Состав команды</h2>
+        <div id="players-list"></div>
+    </div>
+
+    <button id="logout-btn" class="logout">🚪 Выйти</button>
+</div>
+
+<script>
+(function() {
+    console.log('[CoachDashboard] Fragment loaded');
+    var data = Router.currentData || {};
+
+    // Заполняем данные пользователя и команды
+    if (data.user) {
+        document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    }
+    if (data.team) {
+        document.getElementById('team-info').innerHTML =
+            '<div class="team-name">' + data.team.name + '</div>' +
+            (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
+            '<div class="join-code">Код для вступления: <strong>' + data.team.join_code + '</strong></div>';
+    }
+
+    // Список событий
+    var eventsList = document.getElementById('events-list');
+    if (data.events && data.events.length > 0) {
+        eventsList.innerHTML = data.events.map(function(e) {
+            return '<div class="event">' +
+                '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
+                '<div class="event-date">' + e.event_date + '</div>' +
+                (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
+                '</div>';
+        }).join('');
+    } else {
+        eventsList.innerHTML = '<p class="empty-state">Пока нет событий. Добавьте первое!</p>';
+    }
+
+    // Список игроков
+    var playersList = document.getElementById('players-list');
+    if (data.players && data.players.length > 0) {
+        playersList.innerHTML = data.players.map(function(p) {
+            return '<div class="event"><div class="event-title">' + p.first_name + ' ' + p.last_name + '</div></div>';
+        }).join('');
+    } else {
+        playersList.innerHTML = '<p class="empty-state">Игроки ещё не вступили в команду.</p>';
+    }
+
+    // Форма события
+    document.getElementById('toggle-form-btn').onclick = function() {
+        var form = document.getElementById('add-event-form');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    };
+
+    document.getElementById('save-event-btn').onclick = async function() {
+        var title = document.getElementById('ev-title').value.trim();
+        var date = document.getElementById('ev-date').value;
+        var type = document.getElementById('ev-type').value;
+        var location = document.getElementById('ev-location').value.trim();
+
+        if (!title || !date) {
+            alert('Заполните название и дату');
+            return;
+        }
+
+        document.getElementById('save-event-btn').textContent = 'Сохраняем...';
+        var result = await API.addEvent({ title: title, event_date: date, event_type: type, location: location });
+        if (result.success) {
+            Router.navigate('/dashboard');
+        } else {
+            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            document.getElementById('save-event-btn').textContent = 'Добавить';
+        }
+    };
+
+    // Выход
+    document.getElementById('logout-btn').onclick = async function() {
+        await API.logout();
+        Router.navigate('/');
+    };
+})();
+</script>

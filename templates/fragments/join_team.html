@@ -1,0 +1,48 @@
+<div class="container form-container">
+    <h1>👥 Присоединиться</h1>
+    <div id="error-msg" class="error-message" style="display:none;"></div>
+
+    <div class="form-group">
+        <label>Код команды (6 символов) *</label>
+        <input type="text" id="join_code" required placeholder="ABC123" maxlength="6"
+               style="text-transform:uppercase;">
+    </div>
+    <button id="submit-btn" class="btn-submit btn-secondary">Вступить</button>
+    <a id="back-btn" class="back-link">← Назад</a>
+</div>
+
+<script>
+(function() {
+    console.log('[JoinTeam] Fragment loaded');
+
+    document.getElementById('join_code').oninput = function() {
+        this.value = this.value.toUpperCase();
+    };
+
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/start');
+    };
+
+    document.getElementById('submit-btn').onclick = async function() {
+        var code = document.getElementById('join_code').value.trim();
+        if (!code || code.length < 6) {
+            document.getElementById('error-msg').textContent = 'Введите код из 6 символов';
+            document.getElementById('error-msg').style.display = 'block';
+            return;
+        }
+
+        document.getElementById('submit-btn').textContent = 'Вступаем...';
+        document.getElementById('submit-btn').disabled = true;
+
+        var result = await API.joinTeam({ join_code: code });
+        if (result.success) {
+            Router.navigate('/dashboard');
+        } else {
+            document.getElementById('error-msg').textContent = result.error || 'Команда не найдена';
+            document.getElementById('error-msg').style.display = 'block';
+            document.getElementById('submit-btn').textContent = 'Вступить';
+            document.getElementById('submit-btn').disabled = false;
+        }
+    };
+})();
+</script>

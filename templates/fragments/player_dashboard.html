@@ -1,0 +1,94 @@
+<div class="container">
+    <h1>👤 Мой профиль</h1>
+
+    <div class="user-header">
+        <div class="user-name" id="user-name"></div>
+        <div class="user-role">👤 Игрок</div>
+    </div>
+
+    <div class="team-info" id="team-info"></div>
+
+    <div class="nav">
+        <button onclick="showTab('calendar')" id="btn-calendar" class="active">📅 Календарь</button>
+        <button onclick="showTab('stats')" id="btn-stats">📊 Статистика</button>
+        <button onclick="showTab('advice')" id="btn-advice">💡 Советы</button>
+    </div>
+
+    <div id="calendar" class="tab">
+        <h2>📅 Расписание</h2>
+        <div id="events-list"></div>
+    </div>
+
+    <div id="stats" class="tab" style="display:none;">
+        <h2>📊 Твоя статистика</h2>
+        <div class="stats-grid" id="stats-grid"></div>
+    </div>
+
+    <div id="advice" class="tab" style="display:none;">
+        <h2>💡 Рекомендации</h2>
+        <div id="advice-content"></div>
+    </div>
+
+    <button id="logout-btn" class="logout">🚪 Выйти</button>
+</div>
+
+<script>
+function showTab(name) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.style.display = 'none'; });
+    document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById(name).style.display = 'block';
+    document.getElementById('btn-' + name).classList.add('active');
+}
+
+(function() {
+    console.log('[PlayerDashboard] Fragment loaded');
+    var data = Router.currentData || {};
+
+    if (data.user) {
+        document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    }
+    if (data.team) {
+        document.getElementById('team-info').innerHTML = '<div class="team-name">' + data.team.name + '</div>';
+    } else {
+        document.getElementById('team-info').innerHTML = '<p style="color:#666;">Вы не состоите в команде</p>';
+    }
+
+    // События
+    var eventsList = document.getElementById('events-list');
+    if (data.events && data.events.length > 0) {
+        eventsList.innerHTML = data.events.map(function(e) {
+            return '<div class="event">' +
+                '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
+                '<div class="event-date">' + e.event_date + '</div>' +
+                (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
+                '</div>';
+        }).join('');
+    } else {
+        eventsList.innerHTML = '<p class="empty-state">Пока нет запланированных событий</p>';
+    }
+
+    // Статистика
+    var stats = data.stats || { games: 0, goals: 0, assists: 0, pass_accuracy: 0 };
+    document.getElementById('stats-grid').innerHTML =
+        '<div class="stat-card"><div class="stat-value">' + stats.games + '</div><div class="stat-label">Игр</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + stats.goals + '</div><div class="stat-label">Голов</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + stats.assists + '</div><div class="stat-label">Передач</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + stats.pass_accuracy + '%</div><div class="stat-label">Точность</div></div>';
+
+    // Советы
+    var adviceEl = document.getElementById('advice-content');
+    if (stats.games === 0) {
+        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📊 Статистика пуста</div>' +
+            '<div class="advice-text">Попроси тренера внести твои результаты после матча!</div></div>';
+    } else {
+        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📈 Продолжай в том же духе!</div>' +
+            '<div class="advice-text">За ' + stats.games + ' игр: ' + stats.goals + ' голов, ' + stats.assists + ' передач. Точность паса: ' + stats.pass_accuracy + '%.</div></div>';
+    }
+
+    // Выход
+    document.getElementById('logout-btn').onclick = async function() {
+        await API.logout();
+        Router.navigate('/');
+    };
+})();
+</script>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify
+from flask import Flask, render_template, request, session, jsonify
 from database import db, init_db
 from models import User, Team, Event, MatchStat
 from datetime import datetime
@@ -15,7 +15,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'football.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'vk_football_secret_2024'
-app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SESSION_COOKIE_SECURE'] = False   # True сломает куки на HTTP
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
@@ -23,57 +23,34 @@ init_db(app)
 
 
 @app.after_request
-def add_header(response):
+def add_headers(response):
     response.headers['X-Frame-Options'] = 'ALLOWALL'
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
 
-def get_user_id():
-    """Получаем user_id из сессии, затем из ?uid= в URL, затем из формы"""
-    if session.get('user_id'):
-        return session['user_id']
-    uid = request.args.get('uid') or request.form.get('uid')
-    if uid:
-        try:
-            return int(uid)
-        except (ValueError, TypeError):
-            return None
-    return None
+# ─── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ─────────────────────────────────────────────────
+
+def get_user():
+    """Получаем пользователя из сессии"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    return db.session.get(User, user_id)
 
 
-def load_session(user_id):
-    """Загружаем пользователя из БД и заполняем сессию"""
-    user = db.session.get(User, user_id)
-    if user:
-        session['user_id'] = user.id
-        session['vk_id'] = user.vk_id
-        session['name'] = f'{user.first_name} {user.last_name}'
-        session['role'] = user.role
-        session['team_id'] = user.team_id
-        session.modified = True
-        app.logger.debug(f"Session loaded: user_id={user.id}, role={user.role}, team_id={user.team_id}")
-    return user
-
-
-# ─── МАРШРУТЫ ────────────────────────────────────────────────────────────────
+# ─── ЕДИНСТВЕННАЯ СТРАНИЦА (SPA shell) ───────────────────────────────────────
 
 @app.route('/')
 def index():
-    user_id = get_user_id()
-    if user_id:
-        user = load_session(user_id)
-        if user:
-            if user.team_id:
-                return redirect(f'/dashboard?uid={user_id}')
-            else:
-                return redirect(f'/start?uid={user_id}')
-    return render_template('vk_auth.html')
+    return render_template('index.html')
 
 
-@app.route('/vk-auth', methods=['POST'])
-def vk_auth():
+# ─── API: АВТОРИЗАЦИЯ ─────────────────────────────────────────────────────────
+
+@app.route('/api/vk-auth', methods=['POST'])
+def api_vk_auth():
     try:
         data = request.get_json()
         if not data:
@@ -89,14 +66,9 @@ def vk_auth():
 
         user = User.query.filter_by(vk_id=vk_id).first()
         if not user:
-            user = User(
-                vk_id=vk_id,
-                first_name=first_name,
-                last_name=last_name,
-                photo_url=photo,
-                role='player',
-                team_id=None
-            )
+            user = User(vk_id=vk_id, first_name=first_name,
+                        last_name=last_name, photo_url=photo,
+                        role='player', team_id=None)
             db.session.add(user)
         else:
             user.first_name = first_name
@@ -104,16 +76,16 @@ def vk_auth():
             user.photo_url = photo
         db.session.commit()
 
-        load_session(user.id)
+        session['user_id'] = user.id
+        session.modified = True
         app.logger.debug(f"VK auth OK: user_id={user.id}")
 
         return jsonify({
-            'status': 'ok',
-            'user_id': user.id,
-            'first_name': first_name,
-            'last_name': last_name,
+            'id': user.id,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
             'role': user.role,
-            'has_team': user.team_id is not None
+            'team_id': user.team_id
         })
     except Exception as e:
         app.logger.error(f"vk_auth error: {e}")
@@ -121,196 +93,200 @@ def vk_auth():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/test-login', methods=['POST'])
-def test_login():
-    try:
-        vk_id = int(request.form['vk_id'])
-        first_name = request.form['first_name']
-        last_name = request.form['last_name']
-
-        user = User.query.filter_by(vk_id=vk_id).first()
-        if not user:
-            user = User(vk_id=vk_id, first_name=first_name,
-                        last_name=last_name, photo_url='', role='player', team_id=None)
-            db.session.add(user)
-            db.session.commit()
-
-        load_session(user.id)
-        return redirect(f'/start?uid={user.id}')
-    except Exception as e:
-        app.logger.error(f"test_login error: {e}")
-        db.session.rollback()
-        return f"Ошибка входа: {e}", 500
+@app.route('/api/logout')
+def api_logout():
+    session.clear()
+    return jsonify({'success': True})
 
 
-@app.route('/start')
-def start():
-    user_id = get_user_id()
-    if not user_id:
-        app.logger.debug("start(): нет user_id → index")
-        return redirect(url_for('index'))
-    user = load_session(user_id)
+# ─── API: ДАННЫЕ ──────────────────────────────────────────────────────────────
+
+@app.route('/api/user')
+def api_user():
+    user = get_user()
     if not user:
-        return redirect(url_for('index'))
-    # Если у пользователя уже есть команда — сразу в дашборд
-    if user.team_id:
-        app.logger.debug(f"start(): user уже в команде → dashboard")
-        return redirect(f'/dashboard?uid={user_id}')
-    app.logger.debug(f"start() OK: user_id={user_id}")
-    return render_template('start.html', uid=user_id)
+        return jsonify({'error': 'unauthorized'}), 401
+    return jsonify({
+        'id': user.id,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'role': user.role,
+        'team_id': user.team_id
+    })
 
 
-@app.route('/create-team', methods=['GET', 'POST'])
-def create_team():
-    user_id = get_user_id()
-    if not user_id:
-        return redirect(url_for('index'))
-    load_session(user_id)
-
-    if request.method == 'GET':
-        return render_template('create_team.html', uid=user_id)
+@app.route('/api/create-team', methods=['POST'])
+def api_create_team():
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
 
     try:
-        team_name = request.form['team_name']
-        city = request.form.get('city', '')
+        data = request.get_json()
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-
-        team = Team(name=team_name, city=city, coach_id=user_id,
-                    join_code=join_code, stats_level='minimal')
+        team = Team(
+            name=data['team_name'],
+            city=data.get('city', ''),
+            coach_id=user.id,
+            join_code=join_code,
+            stats_level='minimal'
+        )
         db.session.add(team)
         db.session.flush()
 
-        user = db.session.get(User, user_id)
         user.team_id = team.id
         user.role = 'coach'
         db.session.commit()
 
-        app.logger.debug(f"Team created: id={team.id}, coach={user_id}")
+        session['team_id'] = team.id
+        session['role'] = 'coach'
+        session.modified = True
 
-        load_session(user_id)
-        return redirect(f'/dashboard?uid={user_id}')
+        return jsonify({'success': True, 'team_id': team.id})
     except Exception as e:
-        app.logger.error(f"create_team error: {e}")
         db.session.rollback()
-        return render_template('create_team.html', uid=user_id, error=f'Ошибка: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 
-@app.route('/join-team', methods=['GET', 'POST'])
-def join_team():
-    user_id = get_user_id()
-    if not user_id:
-        return redirect(url_for('index'))
-    load_session(user_id)
-
-    if request.method == 'GET':
-        return render_template('join_team.html', uid=user_id)
+@app.route('/api/join-team', methods=['POST'])
+def api_join_team():
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
 
     try:
-        join_code = request.form['join_code'].upper().strip()
+        data = request.get_json()
+        join_code = data.get('join_code', '').upper().strip()
         team = Team.query.filter_by(join_code=join_code).first()
         if not team:
-            return render_template('join_team.html', uid=user_id,
-                                   error='Команда с таким кодом не найдена')
+            return jsonify({'error': 'Команда с таким кодом не найдена'}), 404
 
-        user = db.session.get(User, user_id)
         user.team_id = team.id
         user.role = 'player'
         db.session.commit()
 
-        app.logger.debug(f"User {user_id} joined team {team.id}")
+        session['team_id'] = team.id
+        session['role'] = 'player'
+        session.modified = True
 
-        load_session(user_id)
-        return redirect(f'/dashboard?uid={user_id}')
+        return jsonify({'success': True, 'team_id': team.id})
     except Exception as e:
-        app.logger.error(f"join_team error: {e}")
-        db.session.rollback()
-        return render_template('join_team.html', uid=user_id, error=f'Ошибка: {str(e)}')
-
-
-@app.route('/dashboard')
-def dashboard():
-    user_id = get_user_id()
-    if not user_id:
-        app.logger.debug("dashboard(): нет user_id → index")
-        return redirect(url_for('index'))
-
-    user = load_session(user_id)
-    if not user:
-        return redirect(url_for('index'))
-
-    # Берём актуальные данные из БД, не из сессии
-    team_id = user.team_id
-    role = user.role
-
-    app.logger.debug(f"dashboard(): user_id={user_id}, role={role}, team_id={team_id}")
-
-    team = db.session.get(Team, team_id) if team_id else None
-    events = []
-    if team:
-        events = Event.query.filter_by(team_id=team_id).order_by(Event.event_date).all()
-
-    if role == 'coach':
-        players = User.query.filter_by(team_id=team_id, role='player').all() if team else []
-        return render_template('coach_dashboard.html',
-                               user=user, team=team, events=events,
-                               players=players, uid=user_id)
-    else:
-        my_stats = MatchStat.query.filter_by(player_id=user_id).all()
-        total_stats = {
-            'games': len(set(s.event_id for s in my_stats)),
-            'goals': sum(s.goals for s in my_stats),
-            'assists': sum(s.assists for s in my_stats),
-            'pass_accuracy': 0
-        }
-        total_passes = sum(s.passes_total for s in my_stats)
-        accurate_passes = sum(s.passes_accurate for s in my_stats)
-        if total_passes > 0:
-            total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
-
-        return render_template('player_dashboard.html',
-                               user=user, team=team, events=events,
-                               stats=total_stats, uid=user_id)
-
-
-@app.route('/add-event', methods=['POST'])
-def add_event():
-    user_id = get_user_id()
-    if not user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    user = load_session(user_id)
-    if not user or user.role != 'coach':
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        team_id = user.team_id
-        title = request.form['title']
-        event_date = request.form['event_date']
-        event_type = request.form['event_type']
-        location = request.form.get('location', '')
-
-        event = Event(
-            team_id=team_id,
-            title=title,
-            event_date=datetime.strptime(event_date, '%Y-%m-%dT%H:%M'),
-            event_type=event_type,
-            location=location
-        )
-        db.session.add(event)
-        db.session.commit()
-        app.logger.debug(f"Event added: {title}")
-    except Exception as e:
-        app.logger.error(f"add_event error: {e}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-    return redirect(f'/dashboard?uid={user_id}')
+
+@app.route('/api/add-event', methods=['POST'])
+def api_add_event():
+    user = get_user()
+    if not user or user.role != 'coach':
+        return jsonify({'error': 'unauthorized'}), 403
+
+    try:
+        data = request.get_json()
+        event = Event(
+            team_id=user.team_id,
+            title=data['title'],
+            event_date=datetime.fromisoformat(data['event_date']),
+            event_type=data['event_type'],
+            location=data.get('location', '')
+        )
+        db.session.add(event)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
+# ─── API: ФРАГМЕНТЫ ───────────────────────────────────────────────────────────
+
+@app.route('/api/fragment', methods=['POST'])
+def api_fragment():
+    """Отдаёт HTML фрагмент + данные для маршрута"""
+    body = request.get_json() or {}
+    route = body.get('route', '/')
+    user = get_user()
+
+    app.logger.debug(f"Fragment request: route={route}, user={user.id if user else None}")
+
+    # Авторизация — не требует пользователя
+    if route == '/':
+        return jsonify({
+            'html': render_template('fragments/auth.html'),
+            'data': {}
+        })
+
+    # Все остальные маршруты требуют авторизации
+    if not user:
+        return jsonify({'redirect': '/', 'error': 'unauthorized'})
+
+    # Выбор действия
+    if route == '/start':
+        if user.team_id:
+            return jsonify({'redirect': '/dashboard'})
+        return jsonify({
+            'html': render_template('fragments/start.html'),
+            'data': {'first_name': user.first_name}
+        })
+
+    # Создание команды
+    if route == '/create-team':
+        return jsonify({
+            'html': render_template('fragments/create_team.html'),
+            'data': {}
+        })
+
+    # Вступление в команду
+    if route == '/join-team':
+        return jsonify({
+            'html': render_template('fragments/join_team.html'),
+            'data': {}
+        })
+
+    # Дашборд
+    if route == '/dashboard':
+        team = db.session.get(Team, user.team_id) if user.team_id else None
+        events = []
+        if user.team_id:
+            events = Event.query.filter_by(team_id=user.team_id).order_by(Event.event_date).all()
+
+        if user.role == 'coach':
+            players = User.query.filter_by(team_id=user.team_id, role='player').all() if user.team_id else []
+            data = {
+                'user': {'first_name': user.first_name, 'last_name': user.last_name},
+                'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code, 'city': team.city} if team else None,
+                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
+                'players': [{'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name} for p in players]
+            }
+            return jsonify({
+                'html': render_template('fragments/coach_dashboard.html'),
+                'data': data
+            })
+        else:
+            my_stats = MatchStat.query.filter_by(player_id=user.id).all()
+            total_stats = {
+                'games': len(set(s.event_id for s in my_stats)),
+                'goals': sum(s.goals for s in my_stats),
+                'assists': sum(s.assists for s in my_stats),
+                'pass_accuracy': 0
+            }
+            total_passes = sum(s.passes_total for s in my_stats)
+            accurate_passes = sum(s.passes_accurate for s in my_stats)
+            if total_passes > 0:
+                total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
+
+            data = {
+                'user': {'first_name': user.first_name, 'last_name': user.last_name},
+                'team': {'name': team.name} if team else None,
+                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
+                'stats': total_stats
+            }
+            return jsonify({
+                'html': render_template('fragments/player_dashboard.html'),
+                'data': data
+            })
+
+    return jsonify({'error': 'Not found'}), 404
 
 
 if __name__ == '__main__':

@@ -1,0 +1,49 @@
+<div class="container form-container">
+    <h1>🎯 Создание команды</h1>
+    <div id="error-msg" class="error-message" style="display:none;"></div>
+
+    <div class="form-group">
+        <label>Название команды *</label>
+        <input type="text" id="team_name" required placeholder="Например: FC Spartak">
+    </div>
+    <div class="form-group">
+        <label>Город</label>
+        <input type="text" id="city" placeholder="Например: Москва">
+    </div>
+    <button id="submit-btn" class="btn-submit">Создать команду</button>
+    <a id="back-btn" class="back-link">← Назад</a>
+</div>
+
+<script>
+(function() {
+    console.log('[CreateTeam] Fragment loaded');
+
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/start');
+    };
+
+    document.getElementById('submit-btn').onclick = async function() {
+        var teamName = document.getElementById('team_name').value.trim();
+        var city = document.getElementById('city').value.trim();
+
+        if (!teamName) {
+            document.getElementById('error-msg').textContent = 'Введите название команды';
+            document.getElementById('error-msg').style.display = 'block';
+            return;
+        }
+
+        document.getElementById('submit-btn').textContent = 'Создаём...';
+        document.getElementById('submit-btn').disabled = true;
+
+        var result = await API.createTeam({ team_name: teamName, city: city });
+        if (result.success) {
+            Router.navigate('/dashboard');
+        } else {
+            document.getElementById('error-msg').textContent = 'Ошибка: ' + (result.error || 'неизвестная ошибка');
+            document.getElementById('error-msg').style.display = 'block';
+            document.getElementById('submit-btn').textContent = 'Создать команду';
+            document.getElementById('submit-btn').disabled = false;
+        }
+    };
+})();
+</script>

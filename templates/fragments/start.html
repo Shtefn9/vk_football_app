@@ -1,0 +1,34 @@
+<div class="container start-container">
+    <h1>⚽ Моя Команда</h1>
+    <p class="subtitle" id="greeting"></p>
+
+    <div class="option-card" id="create-team-btn">
+        <div class="option-icon">🎯</div>
+        <h2>Создать команду</h2>
+        <p>Станьте тренером и создайте свою команду</p>
+        <span class="btn">Создать</span>
+    </div>
+
+    <div class="option-card" id="join-team-btn">
+        <div class="option-icon">👥</div>
+        <h2>Присоединиться</h2>
+        <p>Вступите в существующую команду по коду</p>
+        <span class="btn btn-secondary">Войти</span>
+    </div>
+</div>
+
+<script>
+(function() {
+    console.log('[Start] Fragment loaded');
+    var data = Router.currentData || {};
+    if (data.first_name) {
+        document.getElementById('greeting').textContent = 'Привет, ' + data.first_name + '!';
+    }
+    document.getElementById('create-team-btn').onclick = function() {
+        Router.navigate('/create-team');
+    };
+    document.getElementById('join-team-btn').onclick = function() {
+        Router.navigate('/join-team');
+    };
+})();
+</script>
