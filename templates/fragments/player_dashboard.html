@@ -30,7 +30,6 @@
     </div>
 
     <button id="switch-team-btn" class="btn-submit btn-secondary" style="margin-top:20px;">🔄 Сменить команду</button>
-    <button id="logout-btn" class="logout">🚪 Выйти из аккаунта</button>
 </div>
 
 <script>
@@ -87,12 +86,6 @@ function showTab(name) {
     document.getElementById('switch-team-btn').onclick = async function() {
         await API.leaveTeam();
         Router.navigate('/select-team');
-    };
-
-    // Выйти из аккаунта полностью
-    document.getElementById('logout-btn').onclick = async function() {
-        await API.logout();
-        Router.navigate('/');
     };
 })();
 </script>
