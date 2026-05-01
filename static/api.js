@@ -20,16 +20,16 @@ const API = {
     },
 
     selectTeam: async function(teamId) {
-        const res = await fetch('/api/select-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: this.userId, team_id: teamId })
-        });
-        const data = await res.json();
-        if (data.success) {
-            this.currentTeamId = teamId;
+    const res = await fetch('/api/select-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: this.userId, team_id: teamId })
+    });
+    const data = await res.json();
+    if (data.success) {
+        this.currentTeamId = teamId;  // сохраняем локально
         }
-        return data;
+    return data;
     },
 
     createTeam: async function(data) {

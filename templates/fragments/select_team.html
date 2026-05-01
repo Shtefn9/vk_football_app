@@ -57,6 +57,7 @@
         document.querySelectorAll('.team-select-card').forEach(function(card) {
             card.onclick = async function() {
                 var teamId = parseInt(this.getAttribute('data-team-id'));
+                API.currentTeamId = teamId;
                 var result = await API.selectTeam(teamId);
                 if (result.success) {
                     Router.navigate('/dashboard');

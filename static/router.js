@@ -38,7 +38,7 @@ const Router = {
             const res = await fetch('/api/fragment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ route: route, uid: API.userId })
+                body: JSON.stringify({ route: route, uid: API.userId, team_id: API.currentTeamId })
             });
 
             const result = await res.json();
