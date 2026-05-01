@@ -1,0 +1,81 @@
+<div class="container start-container">
+    <h1>⚽ Моя Команда</h1>
+    <p class="subtitle" id="greeting"></p>
+
+    <!-- Список существующих команд -->
+    <div id="teams-list"></div>
+
+    <!-- Кнопки для добавления новой команды -->
+    <div style="margin-top:20px;">
+        <p style="color:#666; font-size:14px; margin-bottom:12px;">Добавить новую команду:</p>
+        <div class="option-card" id="create-team-btn" style="margin-bottom:12px;">
+            <div class="option-icon">🎯</div>
+            <h2>Создать команду</h2>
+            <p>Стать тренером новой команды</p>
+            <span class="btn">Создать</span>
+        </div>
+        <div class="option-card" id="join-team-btn">
+            <div class="option-icon">👥</div>
+            <h2>Присоединиться</h2>
+            <p>Вступить в команду по коду</p>
+            <span class="btn btn-secondary">Войти</span>
+        </div>
+    </div>
+
+    <button id="logout-btn" class="logout" style="margin-top:20px;">🚪 Выйти из аккаунта</button>
+</div>
+
+<script>
+(function() {
+    console.log('[SelectTeam] Fragment loaded');
+    var data = Router.currentData || {};
+
+    if (data.first_name) {
+        document.getElementById('greeting').textContent = 'Привет, ' + data.first_name + '!';
+    }
+
+    // Показываем команды пользователя
+    var teamsList = document.getElementById('teams-list');
+    if (data.teams && data.teams.length > 0) {
+        var html = '<p style="color:#666; font-size:14px; margin-bottom:12px;">Ваши команды:</p>';
+        data.teams.forEach(function(team) {
+            html += '<div class="option-card team-select-card" data-team-id="' + team.id + '" style="margin-bottom:12px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<div>' +
+                '<div style="font-size:18px;font-weight:700;color:#333;">' + team.name + '</div>' +
+                (team.city ? '<div style="font-size:13px;color:#666;">📍 ' + team.city + '</div>' : '') +
+                '</div>' +
+                '<span class="btn' + (team.role === 'coach' ? '' : ' btn-secondary') + '">' +
+                (team.role === 'coach' ? '🎯 Тренер' : '👤 Игрок') +
+                '</span>' +
+                '</div>' +
+                '</div>';
+        });
+        teamsList.innerHTML = html;
+
+        // Клик по команде
+        document.querySelectorAll('.team-select-card').forEach(function(card) {
+            card.onclick = async function() {
+                var teamId = parseInt(this.getAttribute('data-team-id'));
+                var result = await API.selectTeam(teamId);
+                if (result.success) {
+                    Router.navigate('/dashboard');
+                }
+            };
+        });
+    } else {
+        teamsList.innerHTML = '<p style="color:#999;text-align:center;margin-bottom:15px;">У вас пока нет команд</p>';
+    }
+
+    document.getElementById('create-team-btn').onclick = function() {
+        Router.navigate('/create-team');
+    };
+    document.getElementById('join-team-btn').onclick = function() {
+        Router.navigate('/join-team');
+    };
+    document.getElementById('logout-btn').onclick = async function() {
+        await API.logout();
+        Router.navigate('/');
+    };
+})();
+</script>

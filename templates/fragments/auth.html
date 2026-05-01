@@ -1,10 +1,8 @@
 <div class="container" style="text-align:center; padding:40px 20px;">
-
     <div id="loading">
         <h1>⚽ Загрузка...</h1>
         <p style="color:#666; margin-top:10px;">Подключение к ВКонтакте</p>
     </div>
-
 </div>
 
 <script>
@@ -12,8 +10,7 @@
     console.log('[Auth] Fragment loaded');
 
     if (typeof vkBridge === 'undefined') {
-        console.error('[Auth] vkBridge не найден');
-        document.getElementById('loading').innerHTML = '<p style="color:red;">Ошибка: откройте приложение через ВКонтакте</p>';
+        document.getElementById('loading').innerHTML = '<p style="color:red;">Откройте приложение через ВКонтакте</p>';
         return;
     }
 
@@ -32,12 +29,8 @@
         })
         .then(function(userData) {
             console.log('[Auth] Авторизован:', userData.first_name);
-            // Сразу переходим без промежуточного экрана
-            if (userData.team_id) {
-                Router.navigate('/dashboard');
-            } else {
-                Router.navigate('/start');
-            }
+            // Всегда идём на экран выбора команды
+            Router.navigate('/select-team');
         })
         .catch(function(error) {
             console.error('[Auth] Ошибка:', error);

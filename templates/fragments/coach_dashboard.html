@@ -39,7 +39,8 @@
         <div id="players-list"></div>
     </div>
 
-    <button id="logout-btn" class="logout">🚪 Выйти</button>
+    <button id="switch-team-btn" class="btn-submit btn-secondary" style="margin-top:10px;">🔄 Сменить команду</button>
+    <button id="logout-btn" class="logout">🚪 Выйти из аккаунта</button>
 </div>
 
 <script>
@@ -47,7 +48,6 @@
     console.log('[CoachDashboard] Fragment loaded');
     var data = Router.currentData || {};
 
-    // Заполняем данные пользователя и команды
     if (data.user) {
         document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
     }
@@ -58,7 +58,6 @@
             '<div class="join-code">Код для вступления: <strong>' + data.team.join_code + '</strong></div>';
     }
 
-    // Список событий
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
@@ -72,7 +71,6 @@
         eventsList.innerHTML = '<p class="empty-state">Пока нет событий. Добавьте первое!</p>';
     }
 
-    // Список игроков
     var playersList = document.getElementById('players-list');
     if (data.players && data.players.length > 0) {
         playersList.innerHTML = data.players.map(function(p) {
@@ -82,7 +80,6 @@
         playersList.innerHTML = '<p class="empty-state">Игроки ещё не вступили в команду.</p>';
     }
 
-    // Форма события
     document.getElementById('toggle-form-btn').onclick = function() {
         var form = document.getElementById('add-event-form');
         form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -94,10 +91,7 @@
         var type = document.getElementById('ev-type').value;
         var location = document.getElementById('ev-location').value.trim();
 
-        if (!title || !date) {
-            alert('Заполните название и дату');
-            return;
-        }
+        if (!title || !date) { alert('Заполните название и дату'); return; }
 
         document.getElementById('save-event-btn').textContent = 'Сохраняем...';
         var result = await API.addEvent({ title: title, event_date: date, event_type: type, location: location });
@@ -109,7 +103,13 @@
         }
     };
 
-    // Выход
+    // Сменить команду — возврат к выбору без выхода из аккаунта
+    document.getElementById('switch-team-btn').onclick = async function() {
+        await API.leaveTeam();
+        Router.navigate('/select-team');
+    };
+
+    // Выйти из аккаунта полностью
     document.getElementById('logout-btn').onclick = async function() {
         await API.logout();
         Router.navigate('/');

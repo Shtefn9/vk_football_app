@@ -2,7 +2,8 @@
  * API клиент — все запросы к Flask бэкенду
  */
 const API = {
-    userId: null,  // сохраняем после авторизации, передаём в каждый запрос
+    userId: null,
+    currentTeamId: null,
 
     vkAuth: async function(vkData) {
         const res = await fetch('/api/vk-auth', {
@@ -18,13 +19,17 @@ const API = {
         return data;
     },
 
-    getUser: async function() {
-        const res = await fetch('/api/user', {
+    selectTeam: async function(teamId) {
+        const res = await fetch('/api/select-team', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: this.userId })
+            body: JSON.stringify({ uid: this.userId, team_id: teamId })
         });
-        return await res.json();
+        const data = await res.json();
+        if (data.success) {
+            this.currentTeamId = teamId;
+        }
+        return data;
     },
 
     createTeam: async function(data) {
@@ -33,7 +38,11 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId })
         });
-        return await res.json();
+        const result = await res.json();
+        if (result.success) {
+            this.currentTeamId = result.team_id;
+        }
+        return result;
     },
 
     joinTeam: async function(data) {
@@ -42,20 +51,30 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId })
         });
-        return await res.json();
+        const result = await res.json();
+        if (result.success) {
+            this.currentTeamId = result.team_id;
+        }
+        return result;
     },
 
     addEvent: async function(data) {
         const res = await fetch('/api/add-event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...data, uid: this.userId })
+            body: JSON.stringify({ ...data, uid: this.userId, team_id: this.currentTeamId })
         });
         return await res.json();
+    },
+
+    leaveTeam: async function() {
+        await fetch('/api/leave-team', { method: 'POST' });
+        this.currentTeamId = null;
     },
 
     logout: async function() {
         await fetch('/api/logout');
         this.userId = null;
+        this.currentTeamId = null;
     }
 };

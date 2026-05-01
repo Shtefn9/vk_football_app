@@ -8,18 +8,32 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     photo_url = db.Column(db.String(300), default='')
-    role = db.Column(db.String(20), default='player')
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    # Связи с командами через UserTeam
+    teams = db.relationship('UserTeam', backref='user', lazy=True)
 
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     city = db.Column(db.String(100), default='')
-    coach_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     join_code = db.Column(db.String(10), unique=True, nullable=False)
     stats_level = db.Column(db.String(20), default='minimal')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Связи с участниками
+    members = db.relationship('UserTeam', backref='team', lazy=True)
+
+
+class UserTeam(db.Model):
+    """Связь пользователя с командой — один пользователь может быть в нескольких командах"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='player')  # 'coach' или 'player'
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'team_id', name='unique_user_team'),
+    )
 
 
 class Event(db.Model):
