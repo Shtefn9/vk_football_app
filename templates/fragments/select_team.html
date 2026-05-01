@@ -21,8 +21,6 @@
             <span class="btn btn-secondary">Войти</span>
         </div>
     </div>
-
-    <button id="logout-btn" class="logout" style="margin-top:20px;">🚪 Выйти из аккаунта</button>
 </div>
 
 <script>
@@ -73,10 +71,6 @@
     };
     document.getElementById('join-team-btn').onclick = function() {
         Router.navigate('/join-team');
-    };
-    document.getElementById('logout-btn').onclick = async function() {
-        await API.logout();
-        Router.navigate('/');
     };
 })();
 </script>
