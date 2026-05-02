@@ -1,6 +1,3 @@
-/**
- * API клиент — все запросы к Flask бэкенду
- */
 const API = {
     userId: null,
     currentTeamId: null,
@@ -20,16 +17,16 @@ const API = {
     },
 
     selectTeam: async function(teamId) {
-    const res = await fetch('/api/select-team', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: this.userId, team_id: teamId })
-    });
-    const data = await res.json();
-    if (data.success) {
-        this.currentTeamId = teamId;  // сохраняем локально
+        const res = await fetch('/api/select-team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: this.userId, team_id: teamId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            this.currentTeamId = teamId;
         }
-    return data;
+        return data;
     },
 
     createTeam: async function(data) {
@@ -39,9 +36,7 @@ const API = {
             body: JSON.stringify({ ...data, uid: this.userId })
         });
         const result = await res.json();
-        if (result.success) {
-            this.currentTeamId = result.team_id;
-        }
+        if (result.success) this.currentTeamId = result.team_id;
         return result;
     },
 
@@ -52,9 +47,7 @@ const API = {
             body: JSON.stringify({ ...data, uid: this.userId })
         });
         const result = await res.json();
-        if (result.success) {
-            this.currentTeamId = result.team_id;
-        }
+        if (result.success) this.currentTeamId = result.team_id;
         return result;
     },
 
@@ -68,8 +61,21 @@ const API = {
     },
 
     leaveTeam: async function() {
+        // Временно покинуть — вернуться к выбору без удаления из команды
         await fetch('/api/leave-team', { method: 'POST' });
         this.currentTeamId = null;
+    },
+
+    quitTeam: async function() {
+        // Навсегда покинуть команду — удаляет запись из БД
+        const res = await fetch('/api/quit-team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId })
+        });
+        const result = await res.json();
+        if (result.success) this.currentTeamId = null;
+        return result;
     },
 
     logout: async function() {

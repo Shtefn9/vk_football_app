@@ -1,5 +1,62 @@
-<div class="container">
-    <h1>👤 Мой профиль</h1>
+<style>
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.menu-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #667eea;
+    padding: 5px 10px;
+    border-radius: 8px;
+}
+.menu-btn:hover { background: #f0f4ff; }
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 25px;
+    top: 60px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 100;
+    min-width: 200px;
+    overflow: hidden;
+}
+.dropdown-menu.open { display: block; }
+.dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 14px 18px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 15px;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:hover { background: #f8f9ff; }
+.dropdown-item.danger { color: #c62828; }
+</style>
+
+<div class="container" style="position:relative;">
+
+    <div class="top-bar">
+        <h1 style="margin:0;">👤 Мой профиль</h1>
+        <button class="menu-btn" id="menu-btn">⋮</button>
+    </div>
+
+    <!-- Выпадающее меню -->
+    <div class="dropdown-menu" id="dropdown-menu">
+        <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
+        <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
+    </div>
 
     <div class="user-header">
         <div class="user-name" id="user-name"></div>
@@ -29,7 +86,6 @@
         <div id="advice-content"></div>
     </div>
 
-    <button id="switch-team-btn" class="btn-submit btn-secondary" style="margin-top:20px;">🔄 Сменить команду</button>
 </div>
 
 <script>
@@ -82,10 +138,31 @@ function showTab(name) {
             '<div class="advice-text">За ' + stats.games + ' игр: ' + stats.goals + ' голов, ' + stats.assists + ' передач. Точность паса: ' + stats.pass_accuracy + '%.</div></div>';
     }
 
-    // Сменить команду — возврат к выбору без выхода из аккаунта
-    document.getElementById('switch-team-btn').onclick = async function() {
+    // Меню ⋮
+    var menuBtn = document.getElementById('menu-btn');
+    var dropdownMenu = document.getElementById('dropdown-menu');
+
+    menuBtn.onclick = function(e) {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('open');
+    };
+    document.addEventListener('click', function() {
+        dropdownMenu.classList.remove('open');
+    });
+
+    document.getElementById('switch-team-item').onclick = async function() {
         await API.leaveTeam();
         Router.navigate('/select-team');
+    };
+
+    document.getElementById('quit-team-item').onclick = async function() {
+        if (!confirm('Вы уверены, что хотите покинуть команду?')) return;
+        var result = await API.quitTeam();
+        if (result.success) {
+            Router.navigate('/select-team');
+        } else {
+            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+        }
     };
 })();
 </script>
