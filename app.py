@@ -68,43 +68,31 @@ def api_vk_auth():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data'}), 400
-
         vk_id = data.get('vk_id')
         first_name = data.get('first_name', '')
         last_name = data.get('last_name', '')
         photo = data.get('photo', '')
-
         if not vk_id or not first_name:
             return jsonify({'error': 'Missing fields'}), 400
-
         user = User.query.filter_by(vk_id=vk_id).first()
         if not user:
-            user = User(vk_id=vk_id, first_name=first_name,
-                        last_name=last_name, photo_url=photo)
+            user = User(vk_id=vk_id, first_name=first_name, last_name=last_name, photo_url=photo)
             db.session.add(user)
         else:
             user.first_name = first_name
             user.last_name = last_name
             user.photo_url = photo
         db.session.commit()
-
         session['user_id'] = user.id
         session.pop('current_team_id', None)
         session.modified = True
-
         user_teams = UserTeam.query.filter_by(user_id=user.id).all()
         teams = []
         for ut in user_teams:
             team = db.session.get(Team, ut.team_id)
             if team:
                 teams.append({'id': team.id, 'name': team.name, 'city': team.city, 'role': ut.role})
-
-        return jsonify({
-            'id': user.id,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'teams': teams
-        })
+        return jsonify({'id': user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'teams': teams})
     except Exception as e:
         app.logger.error(f"vk_auth error: {e}")
         db.session.rollback()
@@ -134,7 +122,6 @@ def api_logout():
 
 @app.route('/api/leave-team', methods=['POST'])
 def api_leave_team():
-    """Временно покинуть команду — вернуться к выбору (без удаления из команды)"""
     session.pop('current_team_id', None)
     session.modified = True
     return jsonify({'success': True})
@@ -142,7 +129,6 @@ def api_leave_team():
 
 @app.route('/api/quit-team', methods=['POST'])
 def api_quit_team():
-    """Навсегда покинуть команду — удаляет запись из UserTeam"""
     user = get_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
@@ -172,8 +158,12 @@ def api_create_team():
     try:
         data = request.get_json()
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        team = Team(name=data['team_name'], city=data.get('city', ''),
-                    join_code=join_code, stats_level='minimal')
+        team = Team(
+            name=data['team_name'],
+            city=data.get('city', ''),
+            join_code=join_code,
+            stats_level=data.get('stats_level', 'basic')
+        )
         db.session.add(team)
         db.session.flush()
         ut = UserTeam(user_id=user.id, team_id=team.id, role='coach')
@@ -182,6 +172,34 @@ def api_create_team():
         session['current_team_id'] = team.id
         session.modified = True
         return jsonify({'success': True, 'team_id': team.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/set-stats-level', methods=['POST'])
+def api_set_stats_level():
+    """Устанавливает тариф статистики для команды"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        data = request.get_json()
+        team_id = data.get('team_id') or get_current_team_id()
+        stats_level = data.get('stats_level', 'basic')
+
+        # Проверяем что пользователь — тренер этой команды
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+        if not ut:
+            return jsonify({'error': 'Только тренер может менять тариф'}), 403
+
+        team = db.session.get(Team, team_id)
+        if not team:
+            return jsonify({'error': 'Команда не найдена'}), 404
+
+        team.stats_level = stats_level
+        db.session.commit()
+        return jsonify({'success': True, 'stats_level': stats_level})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -272,6 +290,9 @@ def api_fragment():
     if route == '/join-team':
         return jsonify({'html': render_template('fragments/join_team.html'), 'data': {}})
 
+    if route == '/select-stats':
+        return jsonify({'html': render_template('fragments/select_stats.html'), 'data': {}})
+
     if route == '/dashboard':
         team_id = get_current_team_id()
         if not team_id:
@@ -292,7 +313,11 @@ def api_fragment():
                     players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name})
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code, 'city': team.city} if team else None,
+                'team': {
+                    'id': team.id, 'name': team.name,
+                    'join_code': team.join_code, 'city': team.city,
+                    'stats_level': team.stats_level
+                } if team else None,
                 'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
                 'players': players
             }
@@ -311,7 +336,10 @@ def api_fragment():
                 total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {'name': team.name} if team else None,
+                'team': {
+                    'name': team.name,
+                    'stats_level': team.stats_level
+                } if team else None,
                 'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
                 'stats': total_stats
             }

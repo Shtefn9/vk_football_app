@@ -23,9 +23,7 @@ const API = {
             body: JSON.stringify({ uid: this.userId, team_id: teamId })
         });
         const data = await res.json();
-        if (data.success) {
-            this.currentTeamId = teamId;
-        }
+        if (data.success) this.currentTeamId = teamId;
         return data;
     },
 
@@ -38,6 +36,15 @@ const API = {
         const result = await res.json();
         if (result.success) this.currentTeamId = result.team_id;
         return result;
+    },
+
+    setStatsLevel: async function(level) {
+        const res = await fetch('/api/set-stats-level', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId, stats_level: level })
+        });
+        return await res.json();
     },
 
     joinTeam: async function(data) {
@@ -61,13 +68,11 @@ const API = {
     },
 
     leaveTeam: async function() {
-        // Временно покинуть — вернуться к выбору без удаления из команды
         await fetch('/api/leave-team', { method: 'POST' });
         this.currentTeamId = null;
     },
 
     quitTeam: async function() {
-        // Навсегда покинуть команду — удаляет запись из БД
         const res = await fetch('/api/quit-team', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

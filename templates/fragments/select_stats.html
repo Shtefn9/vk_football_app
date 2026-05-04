@@ -1,0 +1,142 @@
+<style>
+.plan-card {
+    border: 2px solid #e5ebf1;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.plan-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102,126,234,0.2);
+}
+.plan-card.recommended {
+    border-color: #667eea;
+    background: #f8f9ff;
+}
+.plan-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.plan-price {
+    font-size: 22px;
+    font-weight: 700;
+    color: #667eea;
+    margin: 8px 0;
+}
+.plan-price span {
+    font-size: 14px;
+    font-weight: 400;
+    color: #888;
+}
+.plan-feature {
+    font-size: 14px;
+    color: #555;
+    padding: 4px 0;
+}
+.plan-feature::before {
+    content: '✓ ';
+    color: #667eea;
+    font-weight: 700;
+}
+.plan-feature.locked {
+    color: #bbb;
+}
+.plan-feature.locked::before {
+    content: '🔒 ';
+}
+</style>
+
+<div class="container">
+    <h1>📊 Выберите тариф</h1>
+    <p style="color:#666; margin-bottom:20px; text-align:center;">
+        Выберите формат ведения статистики для вашей команды
+    </p>
+
+    <!-- Бесплатный тариф -->
+    <div class="plan-card" id="basic-plan">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+                <div style="font-size:18px; font-weight:700; color:#333;">⚽ Базовый</div>
+                <div class="plan-price">Бесплатно</div>
+            </div>
+            <div style="font-size:32px;">🆓</div>
+        </div>
+        <div class="plan-feature">Голы и передачи</div>
+        <div class="plan-feature">Сыгранные матчи</div>
+        <div class="plan-feature">Жёлтые и красные карточки</div>
+        <div class="plan-feature">Базовые советы игрокам</div>
+        <div class="plan-feature locked">Точность паса</div>
+        <div class="plan-feature locked">Удары в створ</div>
+        <div class="plan-feature locked">Отборы и потери</div>
+        <div class="plan-feature locked">Оценка тренера</div>
+        <div class="plan-feature locked">Детальные советы</div>
+        <button class="btn-submit" style="margin-top:15px;" id="basic-btn">Выбрать бесплатный</button>
+    </div>
+
+    <!-- Платный тариф -->
+    <div class="plan-card recommended" id="detailed-plan">
+        <div class="plan-badge">⭐ Рекомендуем</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+                <div style="font-size:18px; font-weight:700; color:#333;">🏆 Детальный</div>
+                <div class="plan-price">199 ₽ <span>за сезон</span></div>
+            </div>
+            <div style="font-size:32px;">💎</div>
+        </div>
+        <div class="plan-feature">Всё из базового тарифа</div>
+        <div class="plan-feature">Точность паса</div>
+        <div class="plan-feature">Удары в створ</div>
+        <div class="plan-feature">Отборы и потери</div>
+        <div class="plan-feature">Оценка тренера (1–10)</div>
+        <div class="plan-feature">Детальные советы по каждому показателю</div>
+        <button class="btn-submit btn-secondary" style="margin-top:15px;" id="detailed-btn">Выбрать детальный</button>
+    </div>
+
+    <p style="font-size:12px; color:#aaa; text-align:center; margin-top:10px;">
+        Тариф можно изменить позже в настройках команды
+    </p>
+</div>
+
+<script>
+(function() {
+    console.log('[SelectStats] Fragment loaded');
+
+    document.getElementById('basic-btn').onclick = async function() {
+        document.getElementById('basic-btn').textContent = 'Сохраняем...';
+        document.getElementById('basic-btn').disabled = true;
+        var result = await API.setStatsLevel('basic');
+        if (result.success) {
+            Router.navigate('/dashboard');
+        } else {
+            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            document.getElementById('basic-btn').textContent = 'Выбрать бесплатный';
+            document.getElementById('basic-btn').disabled = false;
+        }
+    };
+
+    document.getElementById('detailed-btn').onclick = async function() {
+        // Пока без реальной оплаты — просто устанавливаем тариф
+        // TODO: интеграция VK Pay
+        document.getElementById('detailed-btn').textContent = 'Обработка...';
+        document.getElementById('detailed-btn').disabled = true;
+        var result = await API.setStatsLevel('detailed');
+        if (result.success) {
+            Router.navigate('/dashboard');
+        } else {
+            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            document.getElementById('detailed-btn').textContent = 'Выбрать детальный';
+            document.getElementById('detailed-btn').disabled = false;
+        }
+    };
+})();
+</script>

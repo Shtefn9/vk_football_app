@@ -10,7 +10,7 @@
         <label>Город</label>
         <input type="text" id="city" placeholder="Например: Москва">
     </div>
-    <button id="submit-btn" class="btn-submit">Создать команду</button>
+    <button id="submit-btn" class="btn-submit">Далее →</button>
     <a id="back-btn" class="back-link">← Назад</a>
 </div>
 
@@ -19,7 +19,7 @@
     console.log('[CreateTeam] Fragment loaded');
 
     document.getElementById('back-btn').onclick = function() {
-        Router.navigate('/start');
+        Router.navigate('/select-team');
     };
 
     document.getElementById('submit-btn').onclick = async function() {
@@ -35,13 +35,16 @@
         document.getElementById('submit-btn').textContent = 'Создаём...';
         document.getElementById('submit-btn').disabled = true;
 
-        var result = await API.createTeam({ team_name: teamName, city: city });
+        // Создаём команду с базовым тарифом по умолчанию
+        // Тариф выберем на следующем экране
+        var result = await API.createTeam({ team_name: teamName, city: city, stats_level: 'basic' });
         if (result.success) {
-            Router.navigate('/dashboard');
+            // Переходим на выбор тарифа
+            Router.navigate('/select-stats');
         } else {
             document.getElementById('error-msg').textContent = 'Ошибка: ' + (result.error || 'неизвестная ошибка');
             document.getElementById('error-msg').style.display = 'block';
-            document.getElementById('submit-btn').textContent = 'Создать команду';
+            document.getElementById('submit-btn').textContent = 'Далее →';
             document.getElementById('submit-btn').disabled = false;
         }
     };
