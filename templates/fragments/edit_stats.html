@@ -44,27 +44,6 @@
     min-width: 24px;
     text-align: center;
 }
-.rating-group {
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-.rating-label {
-    font-size: 15px;
-    color: #333;
-    font-weight: 500;
-    margin-bottom: 8px;
-}
-.rating-stars {
-    display: flex;
-    gap: 6px;
-}
-.rating-star {
-    font-size: 28px;
-    cursor: pointer;
-    opacity: 0.3;
-    transition: opacity 0.1s;
-}
-.rating-star.active { opacity: 1; }
 .back-btn-top {
     background: none;
     border: none;
@@ -74,6 +53,17 @@
     padding: 0;
     margin-bottom: 15px;
     display: block;
+}
+.section-divider {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin: 15px 0 5px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 </style>
 
@@ -101,7 +91,6 @@
     var statsLevel = data.stats_level || 'basic';
     var existing = data.existing_stats || {};
 
-    // Поля базового тарифа
     var basicFields = [
         { id: 'goals', label: 'Голы', sub: '', type: 'counter' },
         { id: 'assists', label: 'Голевые передачи', sub: '', type: 'counter' },
@@ -110,15 +99,13 @@
         { id: 'minutes_played', label: 'Сыгранные минуты', sub: '', type: 'counter' },
     ];
 
-    // Дополнительные поля детального тарифа
     var detailedFields = [
         { id: 'shots_total', label: 'Удары', sub: 'всего', type: 'counter' },
         { id: 'shots_on_target', label: 'Удары в створ', sub: '', type: 'counter' },
         { id: 'passes_total', label: 'Передачи', sub: 'всего', type: 'counter' },
         { id: 'passes_accurate', label: 'Точные передачи', sub: '', type: 'counter' },
         { id: 'tackles', label: 'Отборы', sub: '', type: 'counter' },
-        { id: 'losses', label: 'Потери', sub: '', type: 'counter' },
-        { id: 'rating', label: 'Оценка тренера', sub: '1–10', type: 'rating' },
+        { id: 'losses', label: 'Потери мяча', sub: '', type: 'counter' },
     ];
 
     var fields = statsLevel === 'detailed'
@@ -128,37 +115,40 @@
     var values = {};
     fields.forEach(function(f) { values[f.id] = existing[f.id] || 0; });
 
-    // Рендерим форму
     var formEl = document.getElementById('stats-form');
-    formEl.innerHTML = fields.map(function(f) {
-        if (f.type === 'counter') {
-            return '<div class="stat-input-group">' +
-                '<div>' +
-                '<div class="stat-label-text">' + f.label + '</div>' +
-                (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') +
-                '</div>' +
-                '<div class="stat-counter">' +
-                '<button class="counter-btn" data-field="' + f.id + '" data-action="minus">−</button>' +
-                '<span class="counter-val" id="val-' + f.id + '">' + (values[f.id] || 0) + '</span>' +
-                '<button class="counter-btn" data-field="' + f.id + '" data-action="plus">+</button>' +
-                '</div>' +
-                '</div>';
-        } else if (f.type === 'rating') {
-            var stars = '';
-            for (var i = 1; i <= 10; i++) {
-                stars += '<span class="rating-star ' + (i <= (values[f.id] || 0) ? 'active' : '') +
-                    '" data-rating="' + i + '">⭐</span>';
-            }
-            return '<div class="rating-group">' +
-                '<div class="rating-label">' + f.label + ' <span style="color:#999;font-size:13px;">(' + f.sub + ')</span></div>' +
-                '<div class="rating-stars" id="rating-stars">' + stars + '</div>' +
-                '<div style="color:#667eea;font-size:14px;margin-top:6px;">Оценка: <strong id="rating-val">' + (values[f.id] || 0) + '</strong>/10</div>' +
-                '</div>';
-        }
-        return '';
+    var html = '';
+
+    if (statsLevel === 'detailed') {
+        html += '<div class="section-divider">⚽ Основное</div>';
+    }
+
+    html += basicFields.map(function(f) {
+        return renderCounter(f, values[f.id] || 0);
     }).join('');
 
-    // Обработка счётчиков
+    if (statsLevel === 'detailed') {
+        html += '<div class="section-divider">📊 Детальная статистика</div>';
+        html += detailedFields.map(function(f) {
+            return renderCounter(f, values[f.id] || 0);
+        }).join('');
+    }
+
+    formEl.innerHTML = html;
+
+    function renderCounter(f, val) {
+        return '<div class="stat-input-group">' +
+            '<div>' +
+            '<div class="stat-label-text">' + f.label + '</div>' +
+            (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') +
+            '</div>' +
+            '<div class="stat-counter">' +
+            '<button class="counter-btn" data-field="' + f.id + '" data-action="minus">−</button>' +
+            '<span class="counter-val" id="val-' + f.id + '">' + val + '</span>' +
+            '<button class="counter-btn" data-field="' + f.id + '" data-action="plus">+</button>' +
+            '</div>' +
+            '</div>';
+    }
+
     document.querySelectorAll('.counter-btn').forEach(function(btn) {
         btn.onclick = function() {
             var field = this.getAttribute('data-field');
@@ -172,22 +162,6 @@
         };
     });
 
-    // Обработка рейтинга
-    var ratingStars = document.getElementById('rating-stars');
-    if (ratingStars) {
-        ratingStars.querySelectorAll('.rating-star').forEach(function(star) {
-            star.onclick = function() {
-                var rating = parseInt(this.getAttribute('data-rating'));
-                values['rating'] = rating;
-                document.getElementById('rating-val').textContent = rating;
-                ratingStars.querySelectorAll('.rating-star').forEach(function(s) {
-                    s.classList.toggle('active', parseInt(s.getAttribute('data-rating')) <= rating);
-                });
-            };
-        });
-    }
-
-    // Сохранение
     document.getElementById('save-btn').onclick = async function() {
         this.textContent = 'Сохраняем...';
         this.disabled = true;

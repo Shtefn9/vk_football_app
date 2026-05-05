@@ -57,10 +57,44 @@ def get_current_team_id():
     return int(team_id) if team_id else None
 
 
+def calculate_rating(stat, stats_level):
+    """Автоматический расчёт рейтинга игрока за матч (только для detailed)"""
+    if stats_level != 'detailed':
+        return None
+
+    rating = 5.0
+
+    # Голы (максимум 3 учитывается)
+    rating += min(stat.goals, 3) * 1.0
+    # Передачи (максимум 3)
+    rating += min(stat.assists, 3) * 0.5
+    # Удары в створ (максимум 5)
+    rating += min(stat.shots_on_target, 5) * 0.2
+    # Отборы (максимум 5)
+    rating += min(stat.tackles, 5) * 0.15
+    # Точность паса (0.0–1.0)
+    if stat.passes_total > 0:
+        accuracy = stat.passes_accurate / stat.passes_total
+        rating += accuracy * 1.5
+    # Потери (максимум 5)
+    rating -= min(stat.losses, 5) * 0.15
+    # Карточки
+    rating -= stat.yellow_cards * 0.5
+    rating -= stat.red_cards * 2.0
+
+    # Обрезаем до диапазона 1.0–10.0
+    rating = max(1.0, min(10.0, rating))
+    return round(rating, 1)
+
+
+# ─── SPA SHELL ────────────────────────────────────────────────────────────────
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
+
+# ─── API: АВТОРИЗАЦИЯ ─────────────────────────────────────────────────────────
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
@@ -255,7 +289,6 @@ def api_add_event():
 
 @app.route('/api/save-stats', methods=['POST'])
 def api_save_stats():
-    """Тренер сохраняет статистику игрока за событие"""
     user = get_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
@@ -269,7 +302,9 @@ def api_save_stats():
         player_id = data.get('player_id')
         stats = data.get('stats', {})
 
-        # Ищем существующую запись или создаём новую
+        team = db.session.get(Team, team_id)
+        stats_level = team.stats_level if team else 'basic'
+
         stat = MatchStat.query.filter_by(player_id=player_id, event_id=event_id).first()
         if not stat:
             stat = MatchStat(player_id=player_id, event_id=event_id)
@@ -286,7 +321,9 @@ def api_save_stats():
         stat.passes_accurate = stats.get('passes_accurate', 0)
         stat.tackles = stats.get('tackles', 0)
         stat.losses = stats.get('losses', 0)
-        stat.rating = stats.get('rating', 0)
+
+        # Рейтинг только для детального тарифа — считается автоматически
+        stat.rating = calculate_rating(stat, stats_level) or 0
 
         db.session.commit()
         return jsonify({'success': True})
@@ -339,8 +376,6 @@ def api_fragment():
             return jsonify({'redirect': '/dashboard'})
         team_id = get_current_team_id()
         team = db.session.get(Team, team_id)
-
-        # Получаем список игроков с отметкой есть ли статистика
         members = UserTeam.query.filter_by(team_id=team_id, role='player').all()
         players = []
         for m in members:
@@ -353,16 +388,13 @@ def api_fragment():
                     'last_name': p.last_name,
                     'has_stats': existing is not None
                 })
-
         return jsonify({
             'html': render_template('fragments/event_detail.html'),
             'data': {
                 'event': {
-                    'id': event.id,
-                    'title': event.title,
+                    'id': event.id, 'title': event.title,
                     'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                    'event_type': event.event_type,
-                    'location': event.location
+                    'event_type': event.event_type, 'location': event.location
                 },
                 'players': players,
                 'stats_level': team.stats_level if team else 'basic'
@@ -374,29 +406,19 @@ def api_fragment():
         player_id = body.get('player_id')
         player_name = body.get('player_name', '')
         stats_level = body.get('stats_level', 'basic')
-
-        # Загружаем существующую статистику если есть
         existing_stats = {}
         if event_id and player_id:
             stat = MatchStat.query.filter_by(player_id=int(player_id), event_id=int(event_id)).first()
             if stat:
                 existing_stats = {
-                    'goals': stat.goals,
-                    'assists': stat.assists,
-                    'yellow_cards': stat.yellow_cards,
-                    'red_cards': stat.red_cards,
+                    'goals': stat.goals, 'assists': stat.assists,
+                    'yellow_cards': stat.yellow_cards, 'red_cards': stat.red_cards,
                     'minutes_played': stat.minutes_played,
-                    'shots_total': stat.shots_total,
-                    'shots_on_target': stat.shots_on_target,
-                    'passes_total': stat.passes_total,
-                    'passes_accurate': stat.passes_accurate,
-                    'tackles': stat.tackles,
-                    'losses': stat.losses,
-                    'rating': stat.rating
+                    'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
+                    'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
+                    'tackles': stat.tackles, 'losses': stat.losses
                 }
-
         event = db.session.get(Event, int(event_id)) if event_id else None
-
         return jsonify({
             'html': render_template('fragments/edit_stats.html'),
             'data': {
@@ -416,7 +438,6 @@ def api_fragment():
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id).first()
         if not ut:
             return jsonify({'redirect': '/select-team'})
-
         team = db.session.get(Team, team_id)
         events = Event.query.filter_by(team_id=team_id).order_by(Event.event_date).all()
 
@@ -452,6 +473,7 @@ def api_fragment():
             accurate_passes = sum(s.passes_accurate for s in my_stats)
             if total_passes > 0:
                 total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
+
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name, 'stats_level': team.stats_level} if team else None,
