@@ -8,7 +8,6 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     photo_url = db.Column(db.String(300), default='')
-    # Связи с командами через UserTeam
     teams = db.relationship('UserTeam', backref='user', lazy=True)
 
 
@@ -17,18 +16,16 @@ class Team(db.Model):
     name = db.Column(db.String(100), nullable=False)
     city = db.Column(db.String(100), default='')
     join_code = db.Column(db.String(10), unique=True, nullable=False)
-    stats_level = db.Column(db.String(20), default='minimal')
+    stats_level = db.Column(db.String(20), default='basic')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # Связи с участниками
     members = db.relationship('UserTeam', backref='team', lazy=True)
 
 
 class UserTeam(db.Model):
-    """Связь пользователя с командой — один пользователь может быть в нескольких командах"""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='player')  # 'coach' или 'player'
+    role = db.Column(db.String(20), nullable=False, default='player')
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -50,10 +47,17 @@ class MatchStat(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     player_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
+    # Базовые поля (оба тарифа)
     goals = db.Column(db.Integer, default=0)
     assists = db.Column(db.Integer, default=0)
+    yellow_cards = db.Column(db.Integer, default=0)
+    red_cards = db.Column(db.Integer, default=0)
+    minutes_played = db.Column(db.Integer, default=0)
+    # Детальные поля (только detailed тариф)
+    shots_total = db.Column(db.Integer, default=0)
+    shots_on_target = db.Column(db.Integer, default=0)
     passes_total = db.Column(db.Integer, default=0)
     passes_accurate = db.Column(db.Integer, default=0)
-    shots_total = db.Column(db.Integer, default=0)
     tackles = db.Column(db.Integer, default=0)
     losses = db.Column(db.Integer, default=0)
+    rating = db.Column(db.Integer, default=0)

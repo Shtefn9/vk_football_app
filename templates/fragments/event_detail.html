@@ -1,0 +1,94 @@
+<style>
+.player-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 15px;
+    border: 1px solid #e5ebf1;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.player-row:hover { border-color: #667eea; }
+.player-row-name { font-weight: 600; color: #333; }
+.player-row-status { font-size: 13px; }
+.has-stats { color: #4caf50; }
+.no-stats { color: #bbb; }
+.back-btn-top {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 15px;
+    display: block;
+}
+</style>
+
+<div class="container">
+    <button class="back-btn-top" id="back-btn">← Назад</button>
+
+    <div id="event-header" style="margin-bottom:20px;"></div>
+
+    <h2>👥 Внести статистику</h2>
+    <p style="color:#666; font-size:14px; margin-bottom:15px;">
+        Нажмите на игрока чтобы внести его статистику за это событие
+    </p>
+
+    <div id="players-list"></div>
+</div>
+
+<script>
+(function() {
+    console.log('[EventDetail] Fragment loaded');
+    var data = Router.currentData || {};
+
+    // Заголовок события
+    var header = document.getElementById('event-header');
+    if (data.event) {
+        header.innerHTML =
+            '<div style="background:#f8f9ff;border-radius:12px;padding:15px;">' +
+            '<div style="font-size:18px;font-weight:700;color:#333;">' +
+            (data.event.event_type === 'match' ? '⚽' : '🏃') + ' ' + data.event.title +
+            '</div>' +
+            '<div style="color:#667eea;font-size:14px;margin-top:4px;">' + data.event.event_date + '</div>' +
+            (data.event.location ? '<div style="color:#888;font-size:13px;">📍 ' + data.event.location + '</div>' : '') +
+            '</div>';
+    }
+
+    // Список игроков
+    var playersList = document.getElementById('players-list');
+    if (data.players && data.players.length > 0) {
+        playersList.innerHTML = data.players.map(function(p) {
+            var hasStats = p.has_stats;
+            return '<div class="player-row" data-player-id="' + p.id + '" data-player-name="' + p.first_name + ' ' + p.last_name + '">' +
+                '<div class="player-row-name">' + p.first_name + ' ' + p.last_name + '</div>' +
+                '<div class="player-row-status ' + (hasStats ? 'has-stats' : 'no-stats') + '">' +
+                (hasStats ? '✓ Заполнено' : '— Нет данных') +
+                '</div>' +
+                '</div>';
+        }).join('');
+
+        document.querySelectorAll('.player-row').forEach(function(row) {
+            row.onclick = function() {
+                var playerId = parseInt(this.getAttribute('data-player-id'));
+                var playerName = this.getAttribute('data-player-name');
+                Router.navigate('/edit-stats', {
+                    event_id: data.event.id,
+                    player_id: playerId,
+                    player_name: playerName,
+                    stats_level: data.stats_level
+                });
+            };
+        });
+    } else {
+        playersList.innerHTML = '<p class="empty-state">В команде пока нет игроков.</p>';
+    }
+
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/dashboard');
+    };
+})();
+</script>

@@ -67,6 +67,15 @@ const API = {
         return await res.json();
     },
 
+    saveStats: async function(data) {
+        const res = await fetch('/api/save-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...data, uid: this.userId, team_id: this.currentTeamId })
+        });
+        return await res.json();
+    },
+
     leaveTeam: async function() {
         await fetch('/api/leave-team', { method: 'POST' });
         this.currentTeamId = null;

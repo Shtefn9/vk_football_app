@@ -1,0 +1,212 @@
+<style>
+.stat-input-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.stat-input-group:last-child { border-bottom: none; }
+.stat-label-text {
+    font-size: 15px;
+    color: #333;
+    font-weight: 500;
+}
+.stat-label-sub {
+    font-size: 12px;
+    color: #999;
+}
+.stat-counter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.counter-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.counter-btn:hover { background: #f0f4ff; }
+.counter-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+    min-width: 24px;
+    text-align: center;
+}
+.rating-group {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.rating-label {
+    font-size: 15px;
+    color: #333;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+.rating-stars {
+    display: flex;
+    gap: 6px;
+}
+.rating-star {
+    font-size: 28px;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: opacity 0.1s;
+}
+.rating-star.active { opacity: 1; }
+.back-btn-top {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 15px;
+    display: block;
+}
+</style>
+
+<div class="container">
+    <button class="back-btn-top" id="back-btn">← Назад</button>
+
+    <div class="user-header" style="margin-bottom:20px;">
+        <div class="user-name" id="player-name"></div>
+        <div class="user-role" id="event-name"></div>
+    </div>
+
+    <div id="stats-form"></div>
+
+    <button class="btn-submit" id="save-btn" style="margin-top:20px;">💾 Сохранить статистику</button>
+</div>
+
+<script>
+(function() {
+    console.log('[EditStats] Fragment loaded');
+    var data = Router.currentData || {};
+
+    document.getElementById('player-name').textContent = data.player_name || 'Игрок';
+    document.getElementById('event-name').textContent = data.event_title || 'Событие';
+
+    var statsLevel = data.stats_level || 'basic';
+    var existing = data.existing_stats || {};
+
+    // Поля базового тарифа
+    var basicFields = [
+        { id: 'goals', label: 'Голы', sub: '', type: 'counter' },
+        { id: 'assists', label: 'Голевые передачи', sub: '', type: 'counter' },
+        { id: 'yellow_cards', label: 'Жёлтые карточки', sub: '', type: 'counter' },
+        { id: 'red_cards', label: 'Красные карточки', sub: '', type: 'counter' },
+        { id: 'minutes_played', label: 'Сыгранные минуты', sub: '', type: 'counter' },
+    ];
+
+    // Дополнительные поля детального тарифа
+    var detailedFields = [
+        { id: 'shots_total', label: 'Удары', sub: 'всего', type: 'counter' },
+        { id: 'shots_on_target', label: 'Удары в створ', sub: '', type: 'counter' },
+        { id: 'passes_total', label: 'Передачи', sub: 'всего', type: 'counter' },
+        { id: 'passes_accurate', label: 'Точные передачи', sub: '', type: 'counter' },
+        { id: 'tackles', label: 'Отборы', sub: '', type: 'counter' },
+        { id: 'losses', label: 'Потери', sub: '', type: 'counter' },
+        { id: 'rating', label: 'Оценка тренера', sub: '1–10', type: 'rating' },
+    ];
+
+    var fields = statsLevel === 'detailed'
+        ? basicFields.concat(detailedFields)
+        : basicFields;
+
+    var values = {};
+    fields.forEach(function(f) { values[f.id] = existing[f.id] || 0; });
+
+    // Рендерим форму
+    var formEl = document.getElementById('stats-form');
+    formEl.innerHTML = fields.map(function(f) {
+        if (f.type === 'counter') {
+            return '<div class="stat-input-group">' +
+                '<div>' +
+                '<div class="stat-label-text">' + f.label + '</div>' +
+                (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') +
+                '</div>' +
+                '<div class="stat-counter">' +
+                '<button class="counter-btn" data-field="' + f.id + '" data-action="minus">−</button>' +
+                '<span class="counter-val" id="val-' + f.id + '">' + (values[f.id] || 0) + '</span>' +
+                '<button class="counter-btn" data-field="' + f.id + '" data-action="plus">+</button>' +
+                '</div>' +
+                '</div>';
+        } else if (f.type === 'rating') {
+            var stars = '';
+            for (var i = 1; i <= 10; i++) {
+                stars += '<span class="rating-star ' + (i <= (values[f.id] || 0) ? 'active' : '') +
+                    '" data-rating="' + i + '">⭐</span>';
+            }
+            return '<div class="rating-group">' +
+                '<div class="rating-label">' + f.label + ' <span style="color:#999;font-size:13px;">(' + f.sub + ')</span></div>' +
+                '<div class="rating-stars" id="rating-stars">' + stars + '</div>' +
+                '<div style="color:#667eea;font-size:14px;margin-top:6px;">Оценка: <strong id="rating-val">' + (values[f.id] || 0) + '</strong>/10</div>' +
+                '</div>';
+        }
+        return '';
+    }).join('');
+
+    // Обработка счётчиков
+    document.querySelectorAll('.counter-btn').forEach(function(btn) {
+        btn.onclick = function() {
+            var field = this.getAttribute('data-field');
+            var action = this.getAttribute('data-action');
+            if (action === 'plus') {
+                values[field] = (values[field] || 0) + 1;
+            } else {
+                values[field] = Math.max(0, (values[field] || 0) - 1);
+            }
+            document.getElementById('val-' + field).textContent = values[field];
+        };
+    });
+
+    // Обработка рейтинга
+    var ratingStars = document.getElementById('rating-stars');
+    if (ratingStars) {
+        ratingStars.querySelectorAll('.rating-star').forEach(function(star) {
+            star.onclick = function() {
+                var rating = parseInt(this.getAttribute('data-rating'));
+                values['rating'] = rating;
+                document.getElementById('rating-val').textContent = rating;
+                ratingStars.querySelectorAll('.rating-star').forEach(function(s) {
+                    s.classList.toggle('active', parseInt(s.getAttribute('data-rating')) <= rating);
+                });
+            };
+        });
+    }
+
+    // Сохранение
+    document.getElementById('save-btn').onclick = async function() {
+        this.textContent = 'Сохраняем...';
+        this.disabled = true;
+        var result = await API.saveStats({
+            event_id: data.event_id,
+            player_id: data.player_id,
+            stats: values
+        });
+        if (result.success) {
+            Router.navigate('/event-detail', { event_id: data.event_id });
+        } else {
+            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            this.textContent = '💾 Сохранить статистику';
+            this.disabled = false;
+        }
+    };
+
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/event-detail', { event_id: data.event_id });
+    };
+})();
+</script>

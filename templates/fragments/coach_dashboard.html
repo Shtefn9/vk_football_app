@@ -43,6 +43,20 @@
 .dropdown-item:last-child { border-bottom: none; }
 .dropdown-item:hover { background: #f8f9ff; }
 .dropdown-item.danger { color: #c62828; }
+.event-clickable {
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+.event-clickable:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 10px rgba(102,126,234,0.15);
+}
+.event-arrow {
+    float: right;
+    color: #667eea;
+    font-size: 18px;
+    margin-top: 2px;
+}
 </style>
 
 <div class="container" style="position:relative;">
@@ -52,7 +66,6 @@
         <button class="menu-btn" id="menu-btn">⋮</button>
     </div>
 
-    <!-- Выпадающее меню -->
     <div class="dropdown-menu" id="dropdown-menu">
         <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
         <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
@@ -110,22 +123,40 @@
         document.getElementById('team-info').innerHTML =
             '<div class="team-name">' + data.team.name + '</div>' +
             (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
-            '<div class="join-code">Код для вступления: <strong>' + data.team.join_code + '</strong></div>';
+            '<div class="join-code">Код для вступления: <strong>' + data.team.join_code + '</strong></div>' +
+            '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' + (data.team.stats_level === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
     }
 
+    // События — кликабельные
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
-            return '<div class="event">' +
+            return '<div class="event event-clickable" data-event-id="' + e.id + '" data-event-title="' + e.title + '" data-event-type="' + e.event_type + '">' +
+                '<span class="event-arrow">›</span>' +
                 '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
                 '<div class="event-date">' + e.event_date + '</div>' +
                 (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
                 '</div>';
         }).join('');
+
+        // Клик по событию → экран события
+        document.querySelectorAll('.event-clickable').forEach(function(el) {
+            el.onclick = function() {
+                var eventId = parseInt(this.getAttribute('data-event-id'));
+                var eventTitle = this.getAttribute('data-event-title');
+                var eventType = this.getAttribute('data-event-type');
+                Router.navigate('/event-detail', {
+                    event_id: eventId,
+                    event_title: eventTitle,
+                    event_type: eventType
+                });
+            };
+        });
     } else {
         eventsList.innerHTML = '<p class="empty-state">Пока нет событий. Добавьте первое!</p>';
     }
 
+    // Состав
     var playersList = document.getElementById('players-list');
     if (data.players && data.players.length > 0) {
         playersList.innerHTML = data.players.map(function(p) {
@@ -138,7 +169,6 @@
     // Меню ⋮
     var menuBtn = document.getElementById('menu-btn');
     var dropdownMenu = document.getElementById('dropdown-menu');
-
     menuBtn.onclick = function(e) {
         e.stopPropagation();
         dropdownMenu.classList.toggle('open');
@@ -146,14 +176,12 @@
     document.addEventListener('click', function() {
         dropdownMenu.classList.remove('open');
     });
-
     document.getElementById('switch-team-item').onclick = async function() {
         await API.leaveTeam();
         Router.navigate('/select-team');
     };
-
     document.getElementById('quit-team-item').onclick = async function() {
-        if (!confirm('Вы уверены, что хотите покинуть команду? Это действие нельзя отменить.')) return;
+        if (!confirm('Вы уверены, что хотите покинуть команду?')) return;
         var result = await API.quitTeam();
         if (result.success) {
             Router.navigate('/select-team');
@@ -167,7 +195,6 @@
         var form = document.getElementById('add-event-form');
         form.style.display = form.style.display === 'none' ? 'block' : 'none';
     };
-
     document.getElementById('save-event-btn').onclick = async function() {
         var title = document.getElementById('ev-title').value.trim();
         var date = document.getElementById('ev-date').value;
