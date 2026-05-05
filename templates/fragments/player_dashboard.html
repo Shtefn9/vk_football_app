@@ -43,6 +43,20 @@
 .dropdown-item:last-child { border-bottom: none; }
 .dropdown-item:hover { background: #f8f9ff; }
 .dropdown-item.danger { color: #c62828; }
+.event-clickable {
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.event-clickable:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 10px rgba(102,126,234,0.15);
+}
+.event-arrow {
+    float: right;
+    color: #667eea;
+    font-size: 18px;
+    margin-top: 2px;
+}
 </style>
 
 <div class="container" style="position:relative;">
@@ -52,7 +66,6 @@
         <button class="menu-btn" id="menu-btn">⋮</button>
     </div>
 
-    <!-- Выпадающее меню -->
     <div class="dropdown-menu" id="dropdown-menu">
         <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
         <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
@@ -99,6 +112,7 @@ function showTab(name) {
 (function() {
     console.log('[PlayerDashboard] Fragment loaded');
     var data = Router.currentData || {};
+    var statsLevel = (data.team && data.team.stats_level) || 'basic';
 
     if (data.user) {
         document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
@@ -109,39 +123,62 @@ function showTab(name) {
         document.getElementById('team-info').innerHTML = '<p style="color:#666;">Вы не состоите в команде</p>';
     }
 
+    // События — кликабельные для матчей
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
-            return '<div class="event">' +
-                '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
+            var isMatch = e.event_type === 'match';
+            var hasStats = e.has_stats;
+            return '<div class="event ' + (isMatch ? 'event-clickable' : '') + '" ' +
+                (isMatch ? 'data-event-id="' + e.id + '" data-event-title="' + e.title + '"' : '') + '>' +
+                (isMatch ? '<span class="event-arrow">›</span>' : '') +
+                '<div class="event-title">' + (isMatch ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
                 '<div class="event-date">' + e.event_date + '</div>' +
                 (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
+                (isMatch && hasStats ? '<div style="font-size:12px;color:#4caf50;margin-top:4px;">✓ Статистика внесена</div>' : '') +
+                (isMatch && !hasStats ? '<div style="font-size:12px;color:#bbb;margin-top:4px;">— Статистика ещё не внесена</div>' : '') +
                 '</div>';
         }).join('');
+
+        // Клик по матчу → просмотр статистики
+        document.querySelectorAll('.event-clickable').forEach(function(el) {
+            el.onclick = function() {
+                var eventId = parseInt(this.getAttribute('data-event-id'));
+                var eventTitle = this.getAttribute('data-event-title');
+                Router.navigate('/player-match-stats', {
+                    event_id: eventId,
+                    event_title: eventTitle,
+                    stats_level: statsLevel
+                });
+            };
+        });
     } else {
         eventsList.innerHTML = '<p class="empty-state">Пока нет запланированных событий</p>';
     }
 
-    var stats = data.stats || { games: 0, goals: 0, assists: 0, pass_accuracy: 0 };
+    // Итоговая статистика
+    var stats = data.stats || { games: 0, goals: 0, assists: 0, yellow_cards: 0, red_cards: 0, pass_accuracy: 0 };
     document.getElementById('stats-grid').innerHTML =
-        '<div class="stat-card"><div class="stat-value">' + stats.games + '</div><div class="stat-label">Игр</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + stats.games + '</div><div class="stat-label">Матчей</div></div>' +
         '<div class="stat-card"><div class="stat-value">' + stats.goals + '</div><div class="stat-label">Голов</div></div>' +
         '<div class="stat-card"><div class="stat-value">' + stats.assists + '</div><div class="stat-label">Передач</div></div>' +
-        '<div class="stat-card"><div class="stat-value">' + stats.pass_accuracy + '%</div><div class="stat-label">Точность</div></div>';
+        '<div class="stat-card"><div class="stat-value">' + stats.yellow_cards + '</div><div class="stat-label">ЖК</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + stats.red_cards + '</div><div class="stat-label">КК</div></div>' +
+        (statsLevel === 'detailed' ? '<div class="stat-card"><div class="stat-value">' + stats.pass_accuracy + '%</div><div class="stat-label">Точность</div></div>' : '');
 
+    // Советы — заглушка, будет реализована позже
     var adviceEl = document.getElementById('advice-content');
     if (stats.games === 0) {
         adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📊 Статистика пуста</div>' +
-            '<div class="advice-text">Попроси тренера внести твои результаты после матча!</div></div>';
+            '<div class="advice-text">Тренер ещё не внёс твои результаты после матча.</div></div>';
     } else {
         adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📈 Продолжай в том же духе!</div>' +
-            '<div class="advice-text">За ' + stats.games + ' игр: ' + stats.goals + ' голов, ' + stats.assists + ' передач. Точность паса: ' + stats.pass_accuracy + '%.</div></div>';
+            '<div class="advice-text">За ' + stats.games + ' матчей: ' + stats.goals + ' голов, ' + stats.assists + ' передач.</div></div>';
     }
 
     // Меню ⋮
     var menuBtn = document.getElementById('menu-btn');
     var dropdownMenu = document.getElementById('dropdown-menu');
-
     menuBtn.onclick = function(e) {
         e.stopPropagation();
         dropdownMenu.classList.toggle('open');
@@ -149,12 +186,10 @@ function showTab(name) {
     document.addEventListener('click', function() {
         dropdownMenu.classList.remove('open');
     });
-
     document.getElementById('switch-team-item').onclick = async function() {
         await API.leaveTeam();
         Router.navigate('/select-team');
     };
-
     document.getElementById('quit-team-item').onclick = async function() {
         if (!confirm('Вы уверены, что хотите покинуть команду?')) return;
         var result = await API.quitTeam();

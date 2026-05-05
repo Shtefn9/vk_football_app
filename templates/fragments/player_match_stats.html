@@ -1,0 +1,140 @@
+<style>
+.back-btn-top {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 15px;
+    display: block;
+}
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-row-label { font-size: 15px; color: #555; }
+.stat-row-value { font-size: 17px; font-weight: 700; color: #333; }
+.section-divider {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin: 15px 0 5px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.rating-block {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    margin: 20px 0;
+    color: white;
+}
+.rating-number {
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1;
+}
+.rating-label {
+    font-size: 14px;
+    opacity: 0.85;
+    margin-top: 6px;
+}
+.no-stats-block {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+}
+</style>
+
+<div class="container">
+    <button class="back-btn-top" id="back-btn">← Назад</button>
+
+    <div id="event-header" style="margin-bottom:20px;"></div>
+
+    <div id="stats-content"></div>
+</div>
+
+<script>
+(function() {
+    console.log('[PlayerMatchStats] Fragment loaded');
+    var data = Router.currentData || {};
+
+    // Заголовок события
+    if (data.event) {
+        document.getElementById('event-header').innerHTML =
+            '<div style="background:#f8f9ff;border-radius:12px;padding:15px;">' +
+            '<div style="font-size:18px;font-weight:700;color:#333;">⚽ ' + data.event.title + '</div>' +
+            '<div style="color:#667eea;font-size:14px;margin-top:4px;">' + data.event.event_date + '</div>' +
+            (data.event.location ? '<div style="color:#888;font-size:13px;">📍 ' + data.event.location + '</div>' : '') +
+            '</div>';
+    }
+
+    var content = document.getElementById('stats-content');
+    var stat = data.stat;
+    var statsLevel = data.stats_level || 'basic';
+
+    if (!stat) {
+        content.innerHTML =
+            '<div class="no-stats-block">' +
+            '<div style="font-size:48px;">📊</div>' +
+            '<div style="font-size:16px;font-weight:600;margin:12px 0;">Статистика ещё не внесена</div>' +
+            '<div style="font-size:14px;">Тренер внесёт результаты после матча</div>' +
+            '</div>';
+    } else {
+        var html = '';
+
+        // Рейтинг — только для детального тарифа
+        if (statsLevel === 'detailed' && stat.rating > 0) {
+            var ratingColor = stat.rating >= 8 ? '#4caf50' : stat.rating >= 6 ? '#ff9800' : '#f44336';
+            html += '<div class="rating-block">' +
+                '<div class="rating-number">' + stat.rating + '</div>' +
+                '<div class="rating-label">Рейтинг за матч</div>' +
+                '</div>';
+        }
+
+        // Основная статистика
+        html += '<div class="section-divider">⚽ Основное</div>';
+        html += renderRow('Голы', stat.goals);
+        html += renderRow('Голевые передачи', stat.assists);
+        html += renderRow('Сыгранные минуты', stat.minutes_played + ' мин');
+        html += renderRow('Жёлтые карточки', stat.yellow_cards);
+        html += renderRow('Красные карточки', stat.red_cards);
+
+        // Детальная статистика
+        if (statsLevel === 'detailed') {
+            html += '<div class="section-divider">📊 Детально</div>';
+            html += renderRow('Удары', stat.shots_total);
+            html += renderRow('Удары в створ', stat.shots_on_target);
+
+            var passAccuracy = stat.passes_total > 0
+                ? Math.round(stat.passes_accurate / stat.passes_total * 100) + '%'
+                : '—';
+            html += renderRow('Передачи', stat.passes_total + ' (' + passAccuracy + ' точных)');
+            html += renderRow('Отборы', stat.tackles);
+            html += renderRow('Потери мяча', stat.losses);
+        }
+
+        content.innerHTML = '<div style="background:white;border-radius:12px;padding:0 5px;">' + html + '</div>';
+    }
+
+    function renderRow(label, value) {
+        return '<div class="stat-row">' +
+            '<div class="stat-row-label">' + label + '</div>' +
+            '<div class="stat-row-value">' + value + '</div>' +
+            '</div>';
+    }
+
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/dashboard');
+    };
+})();
+</script>

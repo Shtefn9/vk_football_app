@@ -477,10 +477,47 @@ def api_fragment():
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name, 'stats_level': team.stats_level} if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
+                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location, 'has_stats': MatchStat.query.filter_by(player_id=user.id, event_id=e.id).first() is not None} for e in events],
                 'stats': total_stats
             }
             return jsonify({'html': render_template('fragments/player_dashboard.html'), 'data': data})
+
+
+    if route == '/player-match-stats':
+        event_id = body.get('event_id')
+        stats_level = body.get('stats_level', 'basic')
+        if not event_id:
+            return jsonify({'redirect': '/dashboard'})
+        event = db.session.get(Event, int(event_id))
+        if not event:
+            return jsonify({'redirect': '/dashboard'})
+
+        # Статистика этого игрока за этот матч
+        stat = MatchStat.query.filter_by(player_id=user.id, event_id=int(event_id)).first()
+        stat_data = None
+        if stat:
+            stat_data = {
+                'goals': stat.goals, 'assists': stat.assists,
+                'yellow_cards': stat.yellow_cards, 'red_cards': stat.red_cards,
+                'minutes_played': stat.minutes_played,
+                'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
+                'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
+                'tackles': stat.tackles, 'losses': stat.losses,
+                'rating': stat.rating
+            }
+
+        return jsonify({
+            'html': render_template('fragments/player_match_stats.html'),
+            'data': {
+                'event': {
+                    'id': event.id, 'title': event.title,
+                    'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                    'event_type': event.event_type, 'location': event.location
+                },
+                'stat': stat_data,
+                'stats_level': stats_level
+            }
+        })
 
     return jsonify({'error': 'Not found'}), 404
 
