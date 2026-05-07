@@ -1,163 +1,114 @@
 <style>
-.stat-input-group {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-.stat-input-group:last-child { border-bottom: none; }
-.stat-label-text {
-    font-size: 15px;
-    color: #333;
-    font-weight: 500;
-}
-.stat-label-sub {
-    font-size: 12px;
-    color: #999;
-}
-.stat-counter {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.counter-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 2px solid #667eea;
-    background: white;
-    color: #667eea;
-    font-size: 20px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-}
-.counter-btn:hover { background: #f0f4ff; }
-.counter-val {
-    font-size: 18px;
-    font-weight: 700;
-    color: #333;
-    min-width: 24px;
-    text-align: center;
-}
-.back-btn-top {
-    background: none;
-    border: none;
-    color: #667eea;
-    font-size: 15px;
-    cursor: pointer;
-    padding: 0;
-    margin-bottom: 15px;
-    display: block;
-}
-.section-divider {
-    background: #f8f9ff;
-    border-radius: 10px;
-    padding: 10px 15px;
-    margin: 15px 0 5px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #667eea;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+.stat-input-group { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid #f0f0f0; }
+.stat-input-group:last-child { border-bottom:none; }
+.stat-label-text { font-size:15px; color:#333; font-weight:500; }
+.stat-label-sub { font-size:12px; color:#999; }
+.stat-counter { display:flex; align-items:center; gap:12px; }
+.counter-btn { width:34px; height:34px; border-radius:50%; border:2px solid #667eea; background:white; color:#667eea; font-size:20px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.counter-btn:hover { background:#f0f4ff; }
+.counter-val { font-size:18px; font-weight:700; color:#333; min-width:24px; text-align:center; }
+.section-divider { background:#f8f9ff; border-radius:10px; padding:10px 15px; margin:15px 0 5px; font-size:13px; font-weight:700; color:#667eea; text-transform:uppercase; letter-spacing:0.5px; }
+.back-btn-top { background:none; border:none; color:#667eea; font-size:15px; cursor:pointer; padding:0; margin-bottom:15px; display:block; }
 </style>
 
 <div class="container">
     <button class="back-btn-top" id="back-btn">← Назад</button>
-
     <div class="user-header" style="margin-bottom:20px;">
         <div class="user-name" id="player-name"></div>
-        <div class="user-role" id="event-name"></div>
+        <div class="user-role" id="player-position"></div>
     </div>
-
     <div id="stats-form"></div>
-
     <button class="btn-submit" id="save-btn" style="margin-top:20px;">💾 Сохранить статистику</button>
 </div>
 
 <script>
 (function() {
-    console.log('[EditStats] Fragment loaded');
     var data = Router.currentData || {};
-
     document.getElementById('player-name').textContent = data.player_name || 'Игрок';
-    document.getElementById('event-name').textContent = data.event_title || 'Событие';
+    var posLabels = { goalkeeper: '🧤 Вратарь', defender: '🛡 Защитник', forward: '⚡ Нападающий' };
+    document.getElementById('player-position').textContent = posLabels[data.position] || '⚡ Нападающий';
 
     var statsLevel = data.stats_level || 'basic';
+    var position = data.position || 'forward';
     var existing = data.existing_stats || {};
-
-    var basicFields = [
-        { id: 'goals', label: 'Голы', sub: '', type: 'counter' },
-        { id: 'assists', label: 'Голевые передачи', sub: '', type: 'counter' },
-        { id: 'yellow_cards', label: 'Жёлтые карточки', sub: '', type: 'counter' },
-        { id: 'red_cards', label: 'Красные карточки', sub: '', type: 'counter' },
-        { id: 'minutes_played', label: 'Сыгранные минуты', sub: '', type: 'counter' },
-    ];
-
-    var detailedFields = [
-        { id: 'shots_total', label: 'Удары', sub: 'всего', type: 'counter' },
-        { id: 'shots_on_target', label: 'Удары в створ', sub: '', type: 'counter' },
-        { id: 'passes_total', label: 'Передачи', sub: 'всего', type: 'counter' },
-        { id: 'passes_accurate', label: 'Точные передачи', sub: '', type: 'counter' },
-        { id: 'tackles', label: 'Отборы', sub: '', type: 'counter' },
-        { id: 'losses', label: 'Потери мяча', sub: '', type: 'counter' },
-    ];
-
-    var fields = statsLevel === 'detailed'
-        ? basicFields.concat(detailedFields)
-        : basicFields;
-
     var values = {};
-    fields.forEach(function(f) { values[f.id] = existing[f.id] || 0; });
-
-    var formEl = document.getElementById('stats-form');
-    var html = '';
-
-    if (statsLevel === 'detailed') {
-        html += '<div class="section-divider">⚽ Основное</div>';
-    }
-
-    html += basicFields.map(function(f) {
-        return renderCounter(f, values[f.id] || 0);
-    }).join('');
-
-    if (statsLevel === 'detailed') {
-        html += '<div class="section-divider">📊 Детальная статистика</div>';
-        html += detailedFields.map(function(f) {
-            return renderCounter(f, values[f.id] || 0);
-        }).join('');
-    }
-
-    formEl.innerHTML = html;
 
     function renderCounter(f, val) {
         return '<div class="stat-input-group">' +
-            '<div>' +
-            '<div class="stat-label-text">' + f.label + '</div>' +
-            (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') +
-            '</div>' +
+            '<div><div class="stat-label-text">' + f.label + '</div>' +
+            (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') + '</div>' +
             '<div class="stat-counter">' +
             '<button class="counter-btn" data-field="' + f.id + '" data-action="minus">−</button>' +
             '<span class="counter-val" id="val-' + f.id + '">' + val + '</span>' +
             '<button class="counter-btn" data-field="' + f.id + '" data-action="plus">+</button>' +
-            '</div>' +
-            '</div>';
+            '</div></div>';
     }
+
+    var commonFields = [
+        { id: 'goals', label: 'Голы' },
+        { id: 'assists', label: 'Голевые передачи' },
+        { id: 'yellow_cards', label: 'Жёлтые карточки' },
+        { id: 'red_cards', label: 'Красные карточки' },
+        { id: 'minutes_played', label: 'Сыгранные минуты' }
+    ];
+
+    var gkBasic = [
+        { id: 'saves', label: 'Сейвы' },
+        { id: 'goals_conceded', label: 'Пропущено голов' }
+    ];
+
+    var gkDetailed = [
+        { id: 'gk_passes_total', label: 'Передачи', sub: 'всего' },
+        { id: 'gk_passes_accurate', label: 'Точные передачи' },
+        { id: 'gk_losses', label: 'Потери мяча' },
+        { id: 'goal_kicks_total', label: 'Вводы мяча', sub: 'всего' },
+        { id: 'goal_kicks_accurate', label: 'Точные вводы' }
+    ];
+
+    var fieldBasic = [
+        { id: 'shots_total', label: 'Удары', sub: 'всего' },
+        { id: 'shots_on_target', label: 'Удары в створ' }
+    ];
+
+    var fieldDetailed = [
+        { id: 'passes_total', label: 'Передачи', sub: 'всего' },
+        { id: 'passes_accurate', label: 'Точные передачи' },
+        { id: 'tackles', label: 'Отборы' },
+        { id: 'losses', label: 'Потери мяча' }
+    ];
+
+    var allFields = commonFields.slice();
+    if (position === 'goalkeeper') {
+        allFields = allFields.concat(gkBasic);
+        if (statsLevel === 'detailed') allFields = allFields.concat(gkDetailed);
+    } else {
+        if (statsLevel === 'detailed') allFields = allFields.concat(fieldBasic).concat(fieldDetailed);
+    }
+
+    allFields.forEach(function(f) { values[f.id] = existing[f.id] || 0; });
+
+    var html = '<div class="section-divider">⚽ Основное</div>';
+    commonFields.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+
+    if (position === 'goalkeeper') {
+        html += '<div class="section-divider">🧤 Статистика вратаря</div>';
+        gkBasic.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+        if (statsLevel === 'detailed') {
+            html += '<div class="section-divider">📊 Детальная</div>';
+            gkDetailed.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+        }
+    } else if (statsLevel === 'detailed') {
+        html += '<div class="section-divider">📊 Детальная статистика</div>';
+        fieldBasic.concat(fieldDetailed).forEach(function(f) { html += renderCounter(f, values[f.id]); });
+    }
+
+    document.getElementById('stats-form').innerHTML = html;
 
     document.querySelectorAll('.counter-btn').forEach(function(btn) {
         btn.onclick = function() {
             var field = this.getAttribute('data-field');
             var action = this.getAttribute('data-action');
-            if (action === 'plus') {
-                values[field] = (values[field] || 0) + 1;
-            } else {
-                values[field] = Math.max(0, (values[field] || 0) - 1);
-            }
+            values[field] = action === 'plus' ? (values[field] || 0) + 1 : Math.max(0, (values[field] || 0) - 1);
             document.getElementById('val-' + field).textContent = values[field];
         };
     });
@@ -165,11 +116,7 @@
     document.getElementById('save-btn').onclick = async function() {
         this.textContent = 'Сохраняем...';
         this.disabled = true;
-        var result = await API.saveStats({
-            event_id: data.event_id,
-            player_id: data.player_id,
-            stats: values
-        });
+        var result = await API.saveStats({ event_id: data.event_id, player_id: data.player_id, stats: values });
         if (result.success) {
             Router.navigate('/event-detail', { event_id: data.event_id });
         } else {

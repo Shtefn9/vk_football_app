@@ -57,44 +57,65 @@ def get_current_team_id():
     return int(team_id) if team_id else None
 
 
-def calculate_rating(stat, stats_level):
-    """Автоматический расчёт рейтинга игрока за матч (только для detailed)"""
+def calculate_rating(stat, position, stats_level):
+    """Автоматический расчёт рейтинга — только для детального тарифа"""
     if stats_level != 'detailed':
-        return None
+        return 0.0
 
-    rating = 5.0
+    if position == 'goalkeeper':
+        total = stat.saves + stat.goals_conceded
+        if total == 0:
+            save_pct = 0.0
+        else:
+            save_pct = stat.saves / total
 
-    # Голы (максимум 3 учитывается)
-    rating += min(stat.goals, 3) * 1.0
-    # Передачи (максимум 3)
-    rating += min(stat.assists, 3) * 0.5
-    # Удары в створ (максимум 5)
-    rating += min(stat.shots_on_target, 5) * 0.2
-    # Отборы (максимум 5)
-    rating += min(stat.tackles, 5) * 0.15
-    # Точность паса (0.0–1.0)
-    if stat.passes_total > 0:
-        accuracy = stat.passes_accurate / stat.passes_total
-        rating += accuracy * 1.5
-    # Потери (максимум 5)
-    rating -= min(stat.losses, 5) * 0.15
-    # Карточки
-    rating -= stat.yellow_cards * 0.5
-    rating -= stat.red_cards * 2.0
+        rating = save_pct * 9.0
 
-    # Обрезаем до диапазона 1.0–10.0
-    rating = max(1.0, min(10.0, rating))
-    return round(rating, 1)
+        # Сухой матч
+        if stat.goals_conceded == 0:
+            rating += 1.0
+
+        # Потери
+        rating -= min(stat.gk_losses, 7) * 0.2
+
+        # Точность передач
+        if stat.gk_passes_total > 0:
+            rating += (stat.gk_passes_accurate / stat.gk_passes_total) * 0.5
+
+        # Точность вводов
+        if stat.goal_kicks_total > 0:
+            rating += (stat.goal_kicks_accurate / stat.goal_kicks_total) * 0.3
+
+    else:
+        # Полевые игроки (нападающий и защитник)
+        rating = 5.0
+
+        rating += min(stat.goals, 3) * 1.0
+        rating += min(stat.assists, 3) * 0.5
+
+        if stat.shots_on_target + stat.shots_total > 0:
+            rating += min(stat.shots_on_target, 5) * 0.2
+
+        rating += min(stat.tackles, 5) * 0.15
+
+        if stat.passes_total > 0:
+            rating += (stat.passes_accurate / stat.passes_total) * 1.5
+
+        rating -= min(stat.losses, 5) * 0.15
+        rating -= stat.yellow_cards * 0.5
+        rating -= stat.red_cards * 2.0
+
+    return round(max(1.0, min(10.0, rating)), 1)
 
 
-# ─── SPA SHELL ────────────────────────────────────────────────────────────────
+# ─── SPA ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-# ─── API: АВТОРИЗАЦИЯ ─────────────────────────────────────────────────────────
+# ─── API ──────────────────────────────────────────────────────────────────────
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
@@ -169,8 +190,6 @@ def api_quit_team():
     try:
         data = request.get_json()
         team_id = data.get('team_id') or get_current_team_id()
-        if not team_id:
-            return jsonify({'error': 'team_id не указан'}), 400
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id).first()
         if not ut:
             return jsonify({'error': 'Вы не состоите в этой команде'}), 404
@@ -178,6 +197,33 @@ def api_quit_team():
         db.session.commit()
         session.pop('current_team_id', None)
         session.modified = True
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/set-position', methods=['POST'])
+def api_set_position():
+    """Тренер назначает позицию игроку"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    team_id = get_current_team_id()
+    coach_ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+    if not coach_ut:
+        return jsonify({'error': 'Только тренер может назначать позиции'}), 403
+    try:
+        data = request.get_json()
+        player_id = data.get('player_id')
+        position = data.get('position')
+        if position not in ('goalkeeper', 'defender', 'forward'):
+            return jsonify({'error': 'Неверная позиция'}), 400
+        player_ut = UserTeam.query.filter_by(user_id=player_id, team_id=team_id).first()
+        if not player_ut:
+            return jsonify({'error': 'Игрок не найден'}), 404
+        player_ut.position = position
+        db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
@@ -192,12 +238,8 @@ def api_create_team():
     try:
         data = request.get_json()
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        team = Team(
-            name=data['team_name'],
-            city=data.get('city', ''),
-            join_code=join_code,
-            stats_level=data.get('stats_level', 'basic')
-        )
+        team = Team(name=data['team_name'], city=data.get('city', ''),
+                    join_code=join_code, stats_level=data.get('stats_level', 'basic'))
         db.session.add(team)
         db.session.flush()
         ut = UserTeam(user_id=user.id, team_id=team.id, role='coach')
@@ -249,8 +291,8 @@ def api_join_team():
         if existing:
             session['current_team_id'] = team.id
             session.modified = True
-            return jsonify({'success': True, 'team_id': team.id, 'already_member': True})
-        ut = UserTeam(user_id=user.id, team_id=team.id, role='player')
+            return jsonify({'success': True, 'team_id': team.id})
+        ut = UserTeam(user_id=user.id, team_id=team.id, role='player', position='forward')
         db.session.add(ut)
         db.session.commit()
         session['current_team_id'] = team.id
@@ -272,13 +314,9 @@ def api_add_event():
         return jsonify({'error': 'unauthorized'}), 403
     try:
         data = request.get_json()
-        event = Event(
-            team_id=team_id,
-            title=data['title'],
-            event_date=datetime.fromisoformat(data['event_date']),
-            event_type=data['event_type'],
-            location=data.get('location', '')
-        )
+        event = Event(team_id=team_id, title=data['title'],
+                      event_date=datetime.fromisoformat(data['event_date']),
+                      event_type=data['event_type'], location=data.get('location', ''))
         db.session.add(event)
         db.session.commit()
         return jsonify({'success': True})
@@ -305,26 +343,39 @@ def api_save_stats():
         team = db.session.get(Team, team_id)
         stats_level = team.stats_level if team else 'basic'
 
+        # Позиция игрока
+        player_ut = UserTeam.query.filter_by(user_id=player_id, team_id=team_id).first()
+        position = player_ut.position if player_ut else 'forward'
+
         stat = MatchStat.query.filter_by(player_id=player_id, event_id=event_id).first()
         if not stat:
             stat = MatchStat(player_id=player_id, event_id=event_id)
             db.session.add(stat)
 
+        # Общие поля
         stat.goals = stats.get('goals', 0)
         stat.assists = stats.get('assists', 0)
         stat.yellow_cards = stats.get('yellow_cards', 0)
         stat.red_cards = stats.get('red_cards', 0)
         stat.minutes_played = stats.get('minutes_played', 0)
-        stat.shots_total = stats.get('shots_total', 0)
-        stat.shots_on_target = stats.get('shots_on_target', 0)
-        stat.passes_total = stats.get('passes_total', 0)
-        stat.passes_accurate = stats.get('passes_accurate', 0)
-        stat.tackles = stats.get('tackles', 0)
-        stat.losses = stats.get('losses', 0)
 
-        # Рейтинг только для детального тарифа — считается автоматически
-        stat.rating = calculate_rating(stat, stats_level) or 0
+        if position == 'goalkeeper':
+            stat.saves = stats.get('saves', 0)
+            stat.goals_conceded = stats.get('goals_conceded', 0)
+            stat.gk_passes_total = stats.get('gk_passes_total', 0)
+            stat.gk_passes_accurate = stats.get('gk_passes_accurate', 0)
+            stat.gk_losses = stats.get('gk_losses', 0)
+            stat.goal_kicks_total = stats.get('goal_kicks_total', 0)
+            stat.goal_kicks_accurate = stats.get('goal_kicks_accurate', 0)
+        else:
+            stat.shots_total = stats.get('shots_total', 0)
+            stat.shots_on_target = stats.get('shots_on_target', 0)
+            stat.passes_total = stats.get('passes_total', 0)
+            stat.passes_accurate = stats.get('passes_accurate', 0)
+            stat.tackles = stats.get('tackles', 0)
+            stat.losses = stats.get('losses', 0)
 
+        stat.rating = calculate_rating(stat, position, stats_level)
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -371,10 +422,7 @@ def api_fragment():
         current_level = team.stats_level if team else 'basic'
         return jsonify({
             'html': render_template('fragments/select_stats.html'),
-            'data': {
-                'is_upgrade': is_upgrade,
-                'current_stats_level': current_level
-            }
+            'data': {'is_upgrade': is_upgrade, 'current_stats_level': current_level}
         })
 
     if route == '/event-detail':
@@ -392,20 +440,21 @@ def api_fragment():
             p = db.session.get(User, m.user_id)
             if p:
                 existing = MatchStat.query.filter_by(player_id=p.id, event_id=event_id).first()
+                pos_label = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}.get(m.position, '⚡ Нападающий')
                 players.append({
                     'id': p.id,
                     'first_name': p.first_name,
                     'last_name': p.last_name,
+                    'position': m.position or 'forward',
+                    'position_label': pos_label,
                     'has_stats': existing is not None
                 })
         return jsonify({
             'html': render_template('fragments/event_detail.html'),
             'data': {
-                'event': {
-                    'id': event.id, 'title': event.title,
-                    'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                    'event_type': event.event_type, 'location': event.location
-                },
+                'event': {'id': event.id, 'title': event.title,
+                          'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                          'event_type': event.event_type, 'location': event.location},
                 'players': players,
                 'stats_level': team.stats_level if team else 'basic'
             }
@@ -415,6 +464,7 @@ def api_fragment():
         event_id = body.get('event_id')
         player_id = body.get('player_id')
         player_name = body.get('player_name', '')
+        position = body.get('position', 'forward')
         stats_level = body.get('stats_level', 'basic')
         existing_stats = {}
         if event_id and player_id:
@@ -424,6 +474,10 @@ def api_fragment():
                     'goals': stat.goals, 'assists': stat.assists,
                     'yellow_cards': stat.yellow_cards, 'red_cards': stat.red_cards,
                     'minutes_played': stat.minutes_played,
+                    'saves': stat.saves, 'goals_conceded': stat.goals_conceded,
+                    'gk_passes_total': stat.gk_passes_total, 'gk_passes_accurate': stat.gk_passes_accurate,
+                    'gk_losses': stat.gk_losses,
+                    'goal_kicks_total': stat.goal_kicks_total, 'goal_kicks_accurate': stat.goal_kicks_accurate,
                     'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
                     'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
                     'tackles': stat.tackles, 'losses': stat.losses
@@ -432,12 +486,49 @@ def api_fragment():
         return jsonify({
             'html': render_template('fragments/edit_stats.html'),
             'data': {
-                'event_id': event_id,
-                'event_title': event.title if event else '',
-                'player_id': player_id,
-                'player_name': player_name,
-                'stats_level': stats_level,
+                'event_id': event_id, 'event_title': event.title if event else '',
+                'player_id': player_id, 'player_name': player_name,
+                'position': position, 'stats_level': stats_level,
                 'existing_stats': existing_stats
+            }
+        })
+
+    if route == '/player-match-stats':
+        event_id = body.get('event_id')
+        stats_level = body.get('stats_level', 'basic')
+        if not event_id:
+            return jsonify({'redirect': '/dashboard'})
+        event = db.session.get(Event, int(event_id))
+        if not event:
+            return jsonify({'redirect': '/dashboard'})
+        team_id = get_current_team_id()
+
+        # Позиция игрока
+        player_ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id).first()
+        position = player_ut.position if player_ut else 'forward'
+
+        stat = MatchStat.query.filter_by(player_id=user.id, event_id=int(event_id)).first()
+        stat_data = None
+        if stat:
+            stat_data = {
+                'goals': stat.goals, 'assists': stat.assists,
+                'yellow_cards': stat.yellow_cards, 'red_cards': stat.red_cards,
+                'minutes_played': stat.minutes_played, 'rating': stat.rating,
+                'saves': stat.saves, 'goals_conceded': stat.goals_conceded,
+                'gk_passes_total': stat.gk_passes_total, 'gk_passes_accurate': stat.gk_passes_accurate,
+                'gk_losses': stat.gk_losses,
+                'goal_kicks_total': stat.goal_kicks_total, 'goal_kicks_accurate': stat.goal_kicks_accurate,
+                'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
+                'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
+                'tackles': stat.tackles, 'losses': stat.losses
+            }
+        return jsonify({
+            'html': render_template('fragments/player_match_stats.html'),
+            'data': {
+                'event': {'id': event.id, 'title': event.title,
+                          'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                          'event_type': event.event_type, 'location': event.location},
+                'stat': stat_data, 'stats_level': stats_level, 'position': position
             }
         })
 
@@ -457,20 +548,23 @@ def api_fragment():
             for m in members:
                 p = db.session.get(User, m.user_id)
                 if p:
-                    players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name})
+                    pos_label = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}.get(m.position, '⚡ Нападающий')
+                    players.append({
+                        'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
+                        'position': m.position or 'forward', 'position_label': pos_label
+                    })
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {
-                    'id': team.id, 'name': team.name,
-                    'join_code': team.join_code, 'city': team.city,
-                    'stats_level': team.stats_level
-                } if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location} for e in events],
+                'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code,
+                         'city': team.city, 'stats_level': team.stats_level} if team else None,
+                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                            'event_type': e.event_type, 'location': e.location} for e in events],
                 'players': players
             }
             return jsonify({'html': render_template('fragments/coach_dashboard.html'), 'data': data})
         else:
             my_stats = MatchStat.query.filter_by(player_id=user.id).all()
+            position = ut.position or 'forward'
             total_stats = {
                 'games': len(set(s.event_id for s in my_stats)),
                 'goals': sum(s.goals for s in my_stats),
@@ -479,55 +573,28 @@ def api_fragment():
                 'red_cards': sum(s.red_cards for s in my_stats),
                 'pass_accuracy': 0
             }
-            total_passes = sum(s.passes_total for s in my_stats)
-            accurate_passes = sum(s.passes_accurate for s in my_stats)
-            if total_passes > 0:
-                total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
+            if position == 'goalkeeper':
+                total_saves = sum(s.saves for s in my_stats)
+                total_conceded = sum(s.goals_conceded for s in my_stats)
+                total_stats['saves'] = total_saves
+                total_stats['goals_conceded'] = total_conceded
+                total_stats['save_pct'] = round(total_saves / (total_saves + total_conceded) * 100) if (total_saves + total_conceded) > 0 else 0
+            else:
+                total_passes = sum(s.passes_total for s in my_stats)
+                accurate_passes = sum(s.passes_accurate for s in my_stats)
+                if total_passes > 0:
+                    total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
 
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name, 'stats_level': team.stats_level} if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'), 'event_type': e.event_type, 'location': e.location, 'has_stats': MatchStat.query.filter_by(player_id=user.id, event_id=e.id).first() is not None} for e in events],
+                'position': position,
+                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                            'event_type': e.event_type, 'location': e.location,
+                            'has_stats': MatchStat.query.filter_by(player_id=user.id, event_id=e.id).first() is not None} for e in events],
                 'stats': total_stats
             }
             return jsonify({'html': render_template('fragments/player_dashboard.html'), 'data': data})
-
-
-    if route == '/player-match-stats':
-        event_id = body.get('event_id')
-        stats_level = body.get('stats_level', 'basic')
-        if not event_id:
-            return jsonify({'redirect': '/dashboard'})
-        event = db.session.get(Event, int(event_id))
-        if not event:
-            return jsonify({'redirect': '/dashboard'})
-
-        # Статистика этого игрока за этот матч
-        stat = MatchStat.query.filter_by(player_id=user.id, event_id=int(event_id)).first()
-        stat_data = None
-        if stat:
-            stat_data = {
-                'goals': stat.goals, 'assists': stat.assists,
-                'yellow_cards': stat.yellow_cards, 'red_cards': stat.red_cards,
-                'minutes_played': stat.minutes_played,
-                'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
-                'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
-                'tackles': stat.tackles, 'losses': stat.losses,
-                'rating': stat.rating
-            }
-
-        return jsonify({
-            'html': render_template('fragments/player_match_stats.html'),
-            'data': {
-                'event': {
-                    'id': event.id, 'title': event.title,
-                    'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                    'event_type': event.event_type, 'location': event.location
-                },
-                'stat': stat_data,
-                'stats_level': stats_level
-            }
-        })
 
     return jsonify({'error': 'Not found'}), 404
 

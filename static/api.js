@@ -4,22 +4,17 @@ const API = {
 
     vkAuth: async function(vkData) {
         const res = await fetch('/api/vk-auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(vkData)
         });
         const data = await res.json();
-        if (data.id) {
-            this.userId = data.id;
-            console.log('[API] userId сохранён:', this.userId);
-        }
+        if (data.id) { this.userId = data.id; console.log('[API] userId:', this.userId); }
         return data;
     },
 
     selectTeam: async function(teamId) {
         const res = await fetch('/api/select-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: this.userId, team_id: teamId })
         });
         const data = await res.json();
@@ -29,8 +24,7 @@ const API = {
 
     createTeam: async function(data) {
         const res = await fetch('/api/create-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId })
         });
         const result = await res.json();
@@ -40,17 +34,23 @@ const API = {
 
     setStatsLevel: async function(level) {
         const res = await fetch('/api/set-stats-level', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId, stats_level: level })
+        });
+        return await res.json();
+    },
+
+    setPosition: async function(playerId, position) {
+        const res = await fetch('/api/set-position', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId, player_id: playerId, position: position })
         });
         return await res.json();
     },
 
     joinTeam: async function(data) {
         const res = await fetch('/api/join-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId })
         });
         const result = await res.json();
@@ -60,8 +60,7 @@ const API = {
 
     addEvent: async function(data) {
         const res = await fetch('/api/add-event', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId, team_id: this.currentTeamId })
         });
         return await res.json();
@@ -69,8 +68,7 @@ const API = {
 
     saveStats: async function(data) {
         const res = await fetch('/api/save-stats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, uid: this.userId, team_id: this.currentTeamId })
         });
         return await res.json();
@@ -83,8 +81,7 @@ const API = {
 
     quitTeam: async function() {
         const res = await fetch('/api/quit-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId })
         });
         const result = await res.json();
