@@ -365,7 +365,17 @@ def api_fragment():
         return jsonify({'html': render_template('fragments/join_team.html'), 'data': {}})
 
     if route == '/select-stats':
-        return jsonify({'html': render_template('fragments/select_stats.html'), 'data': {}})
+        team_id = get_current_team_id()
+        team = db.session.get(Team, team_id) if team_id else None
+        is_upgrade = body.get('is_upgrade', False)
+        current_level = team.stats_level if team else 'basic'
+        return jsonify({
+            'html': render_template('fragments/select_stats.html'),
+            'data': {
+                'is_upgrade': is_upgrade,
+                'current_stats_level': current_level
+            }
+        })
 
     if route == '/event-detail':
         event_id = body.get('event_id')

@@ -166,14 +166,21 @@ function showTab(name) {
         '<div class="stat-card"><div class="stat-value">' + stats.red_cards + '</div><div class="stat-label">КК</div></div>' +
         (statsLevel === 'detailed' ? '<div class="stat-card"><div class="stat-value">' + stats.pass_accuracy + '%</div><div class="stat-label">Точность</div></div>' : '');
 
-    // Советы — заглушка, будет реализована позже
+    // Советы
     var adviceEl = document.getElementById('advice-content');
-    if (stats.games === 0) {
+    if (statsLevel !== 'detailed') {
+        adviceEl.innerHTML =
+            '<div style="text-align:center;padding:30px 20px;">' +
+            '<div style="font-size:48px;margin-bottom:12px;">💎</div>' +
+            '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:8px;">Советы доступны в детальном тарифе</div>' +
+            '<div style="font-size:14px;color:#666;margin-bottom:20px;">Попроси тренера подключить детальный тариф чтобы получать персональные рекомендации по улучшению игры</div>' +
+            '</div>';
+    } else if (stats.games === 0) {
         adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📊 Статистика пуста</div>' +
             '<div class="advice-text">Тренер ещё не внёс твои результаты после матча.</div></div>';
     } else {
-        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📈 Продолжай в том же духе!</div>' +
-            '<div class="advice-text">За ' + stats.games + ' матчей: ' + stats.goals + ' голов, ' + stats.assists + ' передач.</div></div>';
+        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📈 Советы появятся здесь</div>' +
+            '<div class="advice-text">Скоро здесь будут персональные рекомендации на основе твоей статистики.</div></div>';
     }
 
     // Меню ⋮

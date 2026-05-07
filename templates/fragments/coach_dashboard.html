@@ -43,6 +43,7 @@
 .dropdown-item:last-child { border-bottom: none; }
 .dropdown-item:hover { background: #f8f9ff; }
 .dropdown-item.danger { color: #c62828; }
+.dropdown-item.upgrade { color: #667eea; font-weight: 600; }
 .event-clickable {
     cursor: pointer;
     transition: box-shadow 0.2s, border-color 0.2s;
@@ -67,6 +68,7 @@
     </div>
 
     <div class="dropdown-menu" id="dropdown-menu">
+        <button class="dropdown-item upgrade" id="upgrade-item" style="display:none;">💎 Улучшить тариф</button>
         <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
         <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
     </div>
@@ -115,6 +117,7 @@
 (function() {
     console.log('[CoachDashboard] Fragment loaded');
     var data = Router.currentData || {};
+    var statsLevel = (data.team && data.team.stats_level) || 'basic';
 
     if (data.user) {
         document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
@@ -124,7 +127,13 @@
             '<div class="team-name">' + data.team.name + '</div>' +
             (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
             '<div class="join-code">Код для вступления: <strong>' + data.team.join_code + '</strong></div>' +
-            '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' + (data.team.stats_level === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
+            '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' +
+            (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
+    }
+
+    // Показываем кнопку улучшения только для базового тарифа
+    if (statsLevel === 'basic') {
+        document.getElementById('upgrade-item').style.display = 'block';
     }
 
     // События — кликабельные
@@ -139,7 +148,6 @@
                 '</div>';
         }).join('');
 
-        // Клик по событию → экран события
         document.querySelectorAll('.event-clickable').forEach(function(el) {
             el.onclick = function() {
                 var eventId = parseInt(this.getAttribute('data-event-id'));
@@ -176,6 +184,13 @@
     document.addEventListener('click', function() {
         dropdownMenu.classList.remove('open');
     });
+
+    document.getElementById('upgrade-item').onclick = function() {
+        Router.navigate('/select-stats', {
+            is_upgrade: true,
+            current_stats_level: statsLevel
+        });
+    };
     document.getElementById('switch-team-item').onclick = async function() {
         await API.leaveTeam();
         Router.navigate('/select-team');
