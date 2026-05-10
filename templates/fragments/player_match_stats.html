@@ -1,72 +1,31 @@
 <style>
-.back-btn-top {
-    background: none;
-    border: none;
-    color: #667eea;
-    font-size: 15px;
-    cursor: pointer;
-    padding: 0;
-    margin-bottom: 15px;
-    display: block;
-}
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-.stat-row:last-child { border-bottom: none; }
-.stat-row-label { font-size: 15px; color: #555; }
-.stat-row-value { font-size: 17px; font-weight: 700; color: #333; }
-.section-divider {
-    background: #f8f9ff;
-    border-radius: 10px;
-    padding: 10px 15px;
-    margin: 15px 0 5px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #667eea;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.rating-block {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    border-radius: 16px;
-    padding: 20px;
-    text-align: center;
-    margin: 20px 0;
-    color: white;
-}
-.rating-number {
-    font-size: 52px;
-    font-weight: 900;
-    line-height: 1;
-}
-.rating-label {
-    font-size: 14px;
-    opacity: 0.85;
-    margin-top: 6px;
-}
-.no-stats-block {
-    text-align: center;
-    padding: 40px 20px;
-    color: #999;
-}
+.back-btn-top { background:none; border:none; color:#667eea; font-size:15px; cursor:pointer; padding:0; margin-bottom:15px; display:block; }
+.stat-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #f0f0f0; }
+.stat-row:last-child { border-bottom:none; }
+.stat-row-label { font-size:15px; color:#555; }
+.stat-row-value { font-size:17px; font-weight:700; color:#333; }
+.section-divider { background:#f8f9ff; border-radius:10px; padding:10px 15px; margin:15px 0 5px; font-size:13px; font-weight:700; color:#667eea; text-transform:uppercase; letter-spacing:0.5px; }
+.rating-block { background:linear-gradient(135deg, #667eea, #764ba2); border-radius:16px; padding:20px; text-align:center; margin:20px 0; color:white; }
+.rating-number { font-size:52px; font-weight:900; line-height:1; }
+.rating-label { font-size:14px; opacity:0.85; margin-top:6px; }
+.no-stats-block { text-align:center; padding:40px 20px; color:#999; }
+.save-pct-bar { background:#e5ebf1; border-radius:20px; height:10px; margin-top:8px; overflow:hidden; }
+.save-pct-fill { background:linear-gradient(135deg, #667eea, #764ba2); height:100%; border-radius:20px; transition:width 0.5s; }
 </style>
 
 <div class="container">
     <button class="back-btn-top" id="back-btn">← Назад</button>
-
     <div id="event-header" style="margin-bottom:20px;"></div>
-
+    <div id="position-badge" style="margin-bottom:15px;"></div>
     <div id="stats-content"></div>
 </div>
 
 <script>
 (function() {
-    console.log('[PlayerMatchStats] Fragment loaded');
     var data = Router.currentData || {};
+    var stat = data.stat;
+    var statsLevel = data.stats_level || 'basic';
+    var position = data.position || 'forward';
 
     // Заголовок события
     if (data.event) {
@@ -78,9 +37,28 @@
             '</div>';
     }
 
+    // Бейдж позиции
+    var posLabels = { goalkeeper: '🧤 Вратарь', defender: '🛡 Защитник', forward: '⚡ Нападающий' };
+    document.getElementById('position-badge').innerHTML =
+        '<span style="background:#f0f4ff;color:#667eea;font-size:13px;font-weight:600;padding:5px 12px;border-radius:20px;">' +
+        (posLabels[position] || '⚡ Нападающий') + '</span>';
+
     var content = document.getElementById('stats-content');
-    var stat = data.stat;
-    var statsLevel = data.stats_level || 'basic';
+
+    function renderRow(label, value) {
+        return '<div class="stat-row">' +
+            '<div class="stat-row-label">' + label + '</div>' +
+            '<div class="stat-row-value">' + value + '</div>' +
+            '</div>';
+    }
+
+    function pct(a, b) {
+        return (a + b) > 0 ? Math.round(a / (a + b) * 100) : 0;
+    }
+
+    function passPct(accurate, total) {
+        return total > 0 ? Math.round(accurate / total * 100) : 0;
+    }
 
     if (!stat) {
         content.innerHTML =
@@ -89,19 +67,48 @@
             '<div style="font-size:16px;font-weight:600;margin:12px 0;">Статистика ещё не внесена</div>' +
             '<div style="font-size:14px;">Тренер внесёт результаты после матча</div>' +
             '</div>';
-    } else {
-        var html = '';
+        return;
+    }
 
-        // Рейтинг — только для детального тарифа
-        if (statsLevel === 'detailed' && stat.rating > 0) {
-            var ratingColor = stat.rating >= 8 ? '#4caf50' : stat.rating >= 6 ? '#ff9800' : '#f44336';
-            html += '<div class="rating-block">' +
-                '<div class="rating-number">' + stat.rating + '</div>' +
-                '<div class="rating-label">Рейтинг за матч</div>' +
-                '</div>';
+    var html = '';
+
+    // Рейтинг — только детальный тариф
+    if (statsLevel === 'detailed' && stat.rating > 0) {
+        html += '<div class="rating-block">' +
+            '<div class="rating-number">' + stat.rating + '</div>' +
+            '<div class="rating-label">Рейтинг за матч</div>' +
+            '</div>';
+    }
+
+    if (position === 'goalkeeper') {
+        // ── ВРАТАРЬ ──────────────────────────────
+        var savePct = pct(stat.saves, stat.goals_conceded);
+
+        html += '<div class="section-divider">🧤 Статистика вратаря</div>';
+        html += renderRow('Сейвы', stat.saves);
+        html += renderRow('Пропущено голов', stat.goals_conceded);
+        html += '<div class="stat-row"><div class="stat-row-label">Процент сейвов</div>' +
+            '<div class="stat-row-value">' + savePct + '%</div></div>' +
+            '<div class="save-pct-bar"><div class="save-pct-fill" style="width:' + savePct + '%"></div></div>';
+
+        html += '<div class="section-divider">⚽ Общее</div>';
+        html += renderRow('Голы', stat.goals);
+        html += renderRow('Голевые передачи', stat.assists);
+        html += renderRow('Сыгранные минуты', stat.minutes_played + ' мин');
+        html += renderRow('Жёлтые карточки', stat.yellow_cards);
+        html += renderRow('Красные карточки', stat.red_cards);
+
+        if (statsLevel === 'detailed') {
+            html += '<div class="section-divider">📊 Детально</div>';
+            var gkPassPct = passPct(stat.gk_passes_accurate, stat.gk_passes_total);
+            html += renderRow('Передачи', stat.gk_passes_total + ' (' + gkPassPct + '% точных)');
+            html += renderRow('Потери мяча', stat.gk_losses);
+            var kickPct = passPct(stat.goal_kicks_accurate, stat.goal_kicks_total);
+            html += renderRow('Вводы мяча', stat.goal_kicks_total + ' (' + kickPct + '% точных)');
         }
 
-        // Основная статистика
+    } else {
+        // ── ПОЛЕВОЙ ИГРОК ─────────────────────────
         html += '<div class="section-divider">⚽ Основное</div>';
         html += renderRow('Голы', stat.goals);
         html += renderRow('Голевые передачи', stat.assists);
@@ -109,29 +116,18 @@
         html += renderRow('Жёлтые карточки', stat.yellow_cards);
         html += renderRow('Красные карточки', stat.red_cards);
 
-        // Детальная статистика
         if (statsLevel === 'detailed') {
             html += '<div class="section-divider">📊 Детально</div>';
             html += renderRow('Удары', stat.shots_total);
             html += renderRow('Удары в створ', stat.shots_on_target);
-
-            var passAccuracy = stat.passes_total > 0
-                ? Math.round(stat.passes_accurate / stat.passes_total * 100) + '%'
-                : '—';
-            html += renderRow('Передачи', stat.passes_total + ' (' + passAccuracy + ' точных)');
+            var fieldPassPct = passPct(stat.passes_accurate, stat.passes_total);
+            html += renderRow('Передачи', stat.passes_total + ' (' + fieldPassPct + '% точных)');
             html += renderRow('Отборы', stat.tackles);
             html += renderRow('Потери мяча', stat.losses);
         }
-
-        content.innerHTML = '<div style="background:white;border-radius:12px;padding:0 5px;">' + html + '</div>';
     }
 
-    function renderRow(label, value) {
-        return '<div class="stat-row">' +
-            '<div class="stat-row-label">' + label + '</div>' +
-            '<div class="stat-row-value">' + value + '</div>' +
-            '</div>';
-    }
+    content.innerHTML = '<div style="border-radius:12px;padding:0 5px;">' + html + '</div>';
 
     document.getElementById('back-btn').onclick = function() {
         Router.navigate('/dashboard');
