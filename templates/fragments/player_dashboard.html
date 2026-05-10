@@ -173,14 +173,25 @@ function showTab(name) {
             '<div style="text-align:center;padding:30px 20px;">' +
             '<div style="font-size:48px;margin-bottom:12px;">💎</div>' +
             '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:8px;">Советы доступны в детальном тарифе</div>' +
-            '<div style="font-size:14px;color:#666;margin-bottom:20px;">Попроси тренера подключить детальный тариф чтобы получать персональные рекомендации по улучшению игры</div>' +
+            '<div style="font-size:14px;color:#666;">Попроси тренера подключить детальный тариф чтобы получать персональные рекомендации по улучшению игры</div>' +
             '</div>';
     } else if (stats.games === 0) {
-        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📊 Статистика пуста</div>' +
-            '<div class="advice-text">Тренер ещё не внёс твои результаты после матча.</div></div>';
+        adviceEl.innerHTML =
+            '<div style="text-align:center;padding:30px 20px;">' +
+            '<div style="font-size:48px;margin-bottom:12px;">📊</div>' +
+            '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:8px;">Статистика пуста</div>' +
+            '<div style="font-size:14px;color:#666;">Тренер ещё не внёс твои результаты. Советы появятся после первого матча.</div>' +
+            '</div>';
+    } else if (data.advice && data.advice.length > 0) {
+        adviceEl.innerHTML = data.advice.map(function(a) {
+            return '<div class="advice" style="margin-bottom:12px;">' +
+                '<div class="advice-title">' + a.icon + ' ' + a.title + '</div>' +
+                '<div class="advice-text">' + a.text + '</div>' +
+                '</div>';
+        }).join('');
     } else {
-        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">📈 Советы появятся здесь</div>' +
-            '<div class="advice-text">Скоро здесь будут персональные рекомендации на основе твоей статистики.</div></div>';
+        adviceEl.innerHTML = '<div class="advice"><div class="advice-title">✅ Всё отлично!</div>' +
+            '<div class="advice-text">По твоей статистике замечаний нет. Продолжай в том же духе!</div></div>';
     }
 
     // Меню ⋮

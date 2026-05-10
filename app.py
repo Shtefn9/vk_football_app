@@ -58,54 +58,220 @@ def get_current_team_id():
 
 
 def calculate_rating(stat, position, stats_level):
-    """Автоматический расчёт рейтинга — только для детального тарифа"""
     if stats_level != 'detailed':
         return 0.0
 
     if position == 'goalkeeper':
         total = stat.saves + stat.goals_conceded
-        if total == 0:
-            save_pct = 0.0
-        else:
-            save_pct = stat.saves / total
-
+        save_pct = stat.saves / total if total > 0 else 0.0
         rating = save_pct * 9.0
-
-        # Сухой матч
         if stat.goals_conceded == 0:
             rating += 1.0
-
-        # Потери
         rating -= min(stat.gk_losses, 7) * 0.2
-
-        # Точность передач
         if stat.gk_passes_total > 0:
             rating += (stat.gk_passes_accurate / stat.gk_passes_total) * 0.5
-
-        # Точность вводов
         if stat.goal_kicks_total > 0:
             rating += (stat.goal_kicks_accurate / stat.goal_kicks_total) * 0.3
-
     else:
-        # Полевые игроки (нападающий и защитник)
         rating = 5.0
-
         rating += min(stat.goals, 3) * 1.0
         rating += min(stat.assists, 3) * 0.5
-
-        if stat.shots_on_target + stat.shots_total > 0:
-            rating += min(stat.shots_on_target, 5) * 0.2
-
+        rating += min(stat.shots_on_target, 5) * 0.2
         rating += min(stat.tackles, 5) * 0.15
-
         if stat.passes_total > 0:
             rating += (stat.passes_accurate / stat.passes_total) * 1.5
-
         rating -= min(stat.losses, 5) * 0.15
         rating -= stat.yellow_cards * 0.5
         rating -= stat.red_cards * 2.0
 
     return round(max(1.0, min(10.0, rating)), 1)
+
+
+def generate_advice(stats_list, position):
+    """Генерирует советы игроку на основе его статистики за все матчи"""
+    if not stats_list:
+        return []
+
+    games = len(stats_list)
+    advice = []
+
+    # Общие показатели
+    total_goals = sum(s.goals for s in stats_list)
+    total_assists = sum(s.assists for s in stats_list)
+    total_yellow = sum(s.yellow_cards for s in stats_list)
+    total_red = sum(s.red_cards for s in stats_list)
+    avg_goals = total_goals / games
+    avg_assists = total_assists / games
+
+    if position == 'forward':
+        # ── НАПАДАЮЩИЙ ──────────────────────────────
+
+        # Голы
+        if total_goals == 0:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты ещё не открыл счёт в этом сезоне. Попробуй чаще смещаться в зону удара и не жди идеального момента — бей из любой удобной позиции.'})
+        elif avg_goals < 0.2:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Голов пока мало. Анализируй где ты находишься в момент завершения атаки — скорее всего ты слишком далеко от ворот.'})
+        elif avg_goals < 0.4:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Забиваешь стабильно но нечасто. Попробуй замыкать передачи с флангов — это увеличит количество ударов.'})
+        elif avg_goals < 0.7:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Хорошая результативность. Старайся сохранять этот уровень и ищи моменты для удара с первого касания.'})
+        else:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты один из лучших бомбардиров! Поддерживай форму и продолжай открываться за спину защитникам.'})
+
+        # Удары в створ
+        total_shots = sum(s.shots_total for s in stats_list)
+        total_on_target = sum(s.shots_on_target for s in stats_list)
+        if total_shots > 0:
+            shot_pct = total_on_target / total_shots * 100
+            if shot_pct < 25:
+                advice.append({'icon': '🎯', 'title': 'Удары', 'text': 'Большинство ударов проходит мимо. Не торопись — сделай шаг для баланса перед ударом и целься в нижние углы.'})
+            elif shot_pct < 50:
+                advice.append({'icon': '🎯', 'title': 'Удары', 'text': 'Точность ударов средняя. На тренировках отрабатывай удары с разных позиций штрафной зоны.'})
+            else:
+                advice.append({'icon': '🎯', 'title': 'Удары', 'text': 'Хорошая точность ударов! Теперь работай над силой удара чтобы вратарю было сложнее отбить.'})
+
+        # Голевые передачи
+        if total_assists == 0:
+            advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Ни одной голевой передачи. Чаще смотри по сторонам перед ударом — возможно партнёр стоит в лучшей позиции.'})
+        elif avg_assists < 0.2:
+            advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Мало голевых передач. Развивай периферийное зрение — замечай открытых партнёров в штрафной.'})
+        else:
+            advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Хорошее взаимодействие с партнёрами! Продолжай искать открытых игроков в опасных зонах.'})
+
+        # Потери
+        total_losses = sum(s.losses for s in stats_list)
+        avg_losses = total_losses / games
+        if avg_losses > 5:
+            advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Очень много потерь. В сложных ситуациях упрощай игру — лучше отдай назад чем потерять мяч в опасной зоне.'})
+        elif avg_losses > 3:
+            advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Есть потери. Работай над укрыванием мяча корпусом под давлением защитника.'})
+        else:
+            advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Хороший контроль мяча! Продолжай играть уверенно под давлением.'})
+
+        # Точность паса
+        total_passes = sum(s.passes_total for s in stats_list)
+        accurate_passes = sum(s.passes_accurate for s in stats_list)
+        if total_passes > 0:
+            pass_pct = accurate_passes / total_passes * 100
+            if pass_pct < 60:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Низкая точность паса. Начни с простых коротких передач — не рискуй длинными пасами в своей половине поля.'})
+            elif pass_pct < 75:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Средняя точность паса. Перед передачей убедись что видишь партнёра — не отдавай вслепую.'})
+            else:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Хорошая точность паса! Можешь пробовать более сложные передачи между линиями.'})
+
+    elif position == 'defender':
+        # ── ЗАЩИТНИК ────────────────────────────────
+
+        # Отборы
+        total_tackles = sum(s.tackles for s in stats_list)
+        avg_tackles = total_tackles / games
+        if avg_tackles == 0:
+            advice.append({'icon': '🛡', 'title': 'Отборы', 'text': 'Ни одного отбора. Работай над выбором момента — не прыгай сразу, жди когда соперник примет мяч.'})
+        elif avg_tackles < 1:
+            advice.append({'icon': '🛡', 'title': 'Отборы', 'text': 'Мало отборов. Старайся занимать правильную позицию между мячом и воротами.'})
+        elif avg_tackles <= 3:
+            advice.append({'icon': '🛡', 'title': 'Отборы', 'text': 'Хорошее давление на соперника. Продолжай работать над позиционной защитой.'})
+        else:
+            advice.append({'icon': '🛡', 'title': 'Отборы', 'text': 'Отличная игра в отборе! Следи чтобы не получать карточки за грубые фолы.'})
+
+        # Потери
+        total_losses = sum(s.losses for s in stats_list)
+        avg_losses = total_losses / games
+        if avg_losses > 4:
+            advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Очень много потерь для защитника. В своей зоне играй проще — не рискуй с обводкой, отдавай мяч вратарю или назад.'})
+        elif avg_losses > 2:
+            advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Есть потери в защите. Под давлением соперника не задерживай мяч — принимай решение быстрее.'})
+        else:
+            advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Надёжный контроль мяча в защите! Продолжай играть уверенно.'})
+
+        # Точность паса
+        total_passes = sum(s.passes_total for s in stats_list)
+        accurate_passes = sum(s.passes_accurate for s in stats_list)
+        if total_passes > 0:
+            pass_pct = accurate_passes / total_passes * 100
+            if pass_pct < 65:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Низкая точность паса для защитника — это опасно. Играй проще, отдавай короткие передачи вратарю или партнёрам рядом.'})
+            elif pass_pct < 80:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Средняя точность. Не торопись при розыгрыше от обороны — возьми время и найди свободного игрока.'})
+            else:
+                advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Отличная точность паса! Ты надёжное звено в начале атак команды.'})
+
+        # Голы и передачи защитника
+        if total_goals > 0:
+            advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты забил как защитник — отлично подключился в атаку! Главное не забывать возвращаться назад после атаки.'})
+        if total_assists > 0:
+            advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Голевая передача от защитника — значит ты хорошо читаешь игру и вовремя подключаешься к атакам.'})
+
+        # Карточки
+        if total_yellow / games > 0.3:
+            advice.append({'icon': '🟨', 'title': 'Дисциплина', 'text': 'Слишком много жёлтых карточек. Учись встречать соперника корпусом а не ногой.'})
+        if total_red > 0:
+            advice.append({'icon': '🟥', 'title': 'Удаления', 'text': 'Удаление дорого обходится команде. Контролируй эмоции и никогда не иди в подкат сзади.'})
+
+    elif position == 'goalkeeper':
+        # ── ВРАТАРЬ ─────────────────────────────────
+
+        # Процент сейвов
+        total_saves = sum(s.saves for s in stats_list)
+        total_conceded = sum(s.goals_conceded for s in stats_list)
+        if (total_saves + total_conceded) > 0:
+            save_pct = total_saves / (total_saves + total_conceded) * 100
+            if save_pct < 50:
+                advice.append({'icon': '🧤', 'title': 'Сейвы', 'text': 'Меньше половины ударов отражено. Работай над стартовой позицией — стой ближе к центру ворот и не выходи слишком рано на удар.'})
+            elif save_pct < 70:
+                advice.append({'icon': '🧤', 'title': 'Сейвы', 'text': 'Средний процент сейвов. Тренируй реакцию на удары в углы — это самые сложные удары для вратаря.'})
+            elif save_pct < 85:
+                advice.append({'icon': '🧤', 'title': 'Сейвы', 'text': 'Хороший процент сейвов. Продолжай читать направление удара по замаху соперника.'})
+            else:
+                advice.append({'icon': '🧤', 'title': 'Сейвы', 'text': 'Отличная игра! Ты держишь команду в игре. Поддерживай концентрацию до финального свистка.'})
+
+        # Пропущенные голы
+        avg_conceded = total_conceded / games
+        if avg_conceded == 0:
+            advice.append({'icon': '🏆', 'title': 'Сухие матчи', 'text': 'Не пропустил ни одного гола — лучший результат для вратаря! Продолжай держать концентрацию весь матч.'})
+        elif avg_conceded <= 1:
+            advice.append({'icon': '✅', 'title': 'Пропущенные голы', 'text': 'Один пропущенный гол за матч — нормальный результат. Анализируй где была ошибка в позиции.'})
+        elif avg_conceded <= 3:
+            advice.append({'icon': '⚠️', 'title': 'Пропущенные голы', 'text': 'Много пропускаешь. Разбери каждый гол — был ли ты на правильной позиции в момент удара.'})
+        else:
+            advice.append({'icon': '🔴', 'title': 'Пропущенные голы', 'text': 'Тяжёлые матчи. Поговори с тренером о позиционных ошибках и серьёзно работай над выбором позиции.'})
+
+        # Точность передач вратаря
+        total_passes = sum(s.gk_passes_total for s in stats_list)
+        accurate_passes = sum(s.gk_passes_accurate for s in stats_list)
+        if total_passes > 0:
+            pass_pct = accurate_passes / total_passes * 100
+            if pass_pct < 60:
+                advice.append({'icon': '📊', 'title': 'Передачи', 'text': 'Низкая точность передач. Не рискуй длинными пасами — играй надёжно короткими передачами защитникам.'})
+            elif pass_pct < 80:
+                advice.append({'icon': '📊', 'title': 'Передачи', 'text': 'Средняя точность передач. Перед передачей убедись что партнёр открыт и готов принять мяч.'})
+            else:
+                advice.append({'icon': '📊', 'title': 'Передачи', 'text': 'Отличная точность передач! Ты хорошо начинаешь атаки команды.'})
+
+        # Точность вводов
+        total_kicks = sum(s.goal_kicks_total for s in stats_list)
+        accurate_kicks = sum(s.goal_kicks_accurate for s in stats_list)
+        if total_kicks > 0:
+            kick_pct = accurate_kicks / total_kicks * 100
+            if kick_pct < 50:
+                advice.append({'icon': '🦵', 'title': 'Вводы мяча', 'text': 'Большинство вводов теряется. Не бей наугад — ищи открытого игрока или выбивай мяч в угол поля.'})
+            elif kick_pct < 75:
+                advice.append({'icon': '🦵', 'title': 'Вводы мяча', 'text': 'Средняя точность вводов. Отрабатывай удар от ворот на тренировках — это важный элемент игры.'})
+            else:
+                advice.append({'icon': '🦵', 'title': 'Вводы мяча', 'text': 'Хорошая точность вводов! Ты эффективно начинаешь атаки от ворот.'})
+
+        # Потери вратаря
+        total_losses = sum(s.gk_losses for s in stats_list)
+        avg_losses = total_losses / games
+        if avg_losses > 3:
+            advice.append({'icon': '🔴', 'title': 'Потери', 'text': 'Много потерь для вратаря — это очень опасно. В своей штрафной всегда играй надёжно и не рискуй с обводкой.'})
+        elif avg_losses > 1:
+            advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Есть потери. Вратарю нельзя рисковать с мячом в штрафной — играй проще.'})
+        else:
+            advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Ни одной потери — отличная надёжность! Продолжай играть уверенно с мячом.'})
+
+    return advice
 
 
 # ─── SPA ──────────────────────────────────────────────────────────────────────
@@ -205,7 +371,6 @@ def api_quit_team():
 
 @app.route('/api/set-position', methods=['POST'])
 def api_set_position():
-    """Тренер назначает позицию игроку"""
     user = get_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
@@ -339,26 +504,19 @@ def api_save_stats():
         event_id = data.get('event_id')
         player_id = data.get('player_id')
         stats = data.get('stats', {})
-
         team = db.session.get(Team, team_id)
         stats_level = team.stats_level if team else 'basic'
-
-        # Позиция игрока
         player_ut = UserTeam.query.filter_by(user_id=player_id, team_id=team_id).first()
         position = player_ut.position if player_ut else 'forward'
-
         stat = MatchStat.query.filter_by(player_id=player_id, event_id=event_id).first()
         if not stat:
             stat = MatchStat(player_id=player_id, event_id=event_id)
             db.session.add(stat)
-
-        # Общие поля
         stat.goals = stats.get('goals', 0)
         stat.assists = stats.get('assists', 0)
         stat.yellow_cards = stats.get('yellow_cards', 0)
         stat.red_cards = stats.get('red_cards', 0)
         stat.minutes_played = stats.get('minutes_played', 0)
-
         if position == 'goalkeeper':
             stat.saves = stats.get('saves', 0)
             stat.goals_conceded = stats.get('goals_conceded', 0)
@@ -374,7 +532,6 @@ def api_save_stats():
             stat.passes_accurate = stats.get('passes_accurate', 0)
             stat.tackles = stats.get('tackles', 0)
             stat.losses = stats.get('losses', 0)
-
         stat.rating = calculate_rating(stat, position, stats_level)
         db.session.commit()
         return jsonify({'success': True})
@@ -389,8 +546,6 @@ def api_fragment():
     route = body.get('route', '/')
     user = get_user()
 
-    app.logger.debug(f"Fragment: route={route}, user={user.id if user else None}")
-
     if route == '/':
         return jsonify({'html': render_template('fragments/auth.html'), 'data': {}})
 
@@ -404,10 +559,8 @@ def api_fragment():
             team = db.session.get(Team, ut.team_id)
             if team:
                 teams.append({'id': team.id, 'name': team.name, 'city': team.city, 'role': ut.role})
-        return jsonify({
-            'html': render_template('fragments/select_team.html'),
-            'data': {'first_name': user.first_name, 'teams': teams}
-        })
+        return jsonify({'html': render_template('fragments/select_team.html'),
+                        'data': {'first_name': user.first_name, 'teams': teams}})
 
     if route == '/create-team':
         return jsonify({'html': render_template('fragments/create_team.html'), 'data': {}})
@@ -418,12 +571,9 @@ def api_fragment():
     if route == '/select-stats':
         team_id = get_current_team_id()
         team = db.session.get(Team, team_id) if team_id else None
-        is_upgrade = body.get('is_upgrade', False)
-        current_level = team.stats_level if team else 'basic'
-        return jsonify({
-            'html': render_template('fragments/select_stats.html'),
-            'data': {'is_upgrade': is_upgrade, 'current_stats_level': current_level}
-        })
+        return jsonify({'html': render_template('fragments/select_stats.html'),
+                        'data': {'is_upgrade': body.get('is_upgrade', False),
+                                 'current_stats_level': team.stats_level if team else 'basic'}})
 
     if route == '/event-detail':
         event_id = body.get('event_id')
@@ -435,35 +585,25 @@ def api_fragment():
         team_id = get_current_team_id()
         team = db.session.get(Team, team_id)
         members = UserTeam.query.filter_by(team_id=team_id, role='player').all()
+        pos_labels = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}
         players = []
         for m in members:
             p = db.session.get(User, m.user_id)
             if p:
                 existing = MatchStat.query.filter_by(player_id=p.id, event_id=event_id).first()
-                pos_label = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}.get(m.position, '⚡ Нападающий')
-                players.append({
-                    'id': p.id,
-                    'first_name': p.first_name,
-                    'last_name': p.last_name,
-                    'position': m.position or 'forward',
-                    'position_label': pos_label,
-                    'has_stats': existing is not None
-                })
-        return jsonify({
-            'html': render_template('fragments/event_detail.html'),
-            'data': {
-                'event': {'id': event.id, 'title': event.title,
-                          'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                          'event_type': event.event_type, 'location': event.location},
-                'players': players,
-                'stats_level': team.stats_level if team else 'basic'
-            }
-        })
+                players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
+                                'position': m.position or 'forward',
+                                'position_label': pos_labels.get(m.position, '⚡ Нападающий'),
+                                'has_stats': existing is not None})
+        return jsonify({'html': render_template('fragments/event_detail.html'),
+                        'data': {'event': {'id': event.id, 'title': event.title,
+                                           'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                                           'event_type': event.event_type, 'location': event.location},
+                                 'players': players, 'stats_level': team.stats_level if team else 'basic'}})
 
     if route == '/edit-stats':
         event_id = body.get('event_id')
         player_id = body.get('player_id')
-        player_name = body.get('player_name', '')
         position = body.get('position', 'forward')
         stats_level = body.get('stats_level', 'basic')
         existing_stats = {}
@@ -476,22 +616,18 @@ def api_fragment():
                     'minutes_played': stat.minutes_played,
                     'saves': stat.saves, 'goals_conceded': stat.goals_conceded,
                     'gk_passes_total': stat.gk_passes_total, 'gk_passes_accurate': stat.gk_passes_accurate,
-                    'gk_losses': stat.gk_losses,
-                    'goal_kicks_total': stat.goal_kicks_total, 'goal_kicks_accurate': stat.goal_kicks_accurate,
+                    'gk_losses': stat.gk_losses, 'goal_kicks_total': stat.goal_kicks_total,
+                    'goal_kicks_accurate': stat.goal_kicks_accurate,
                     'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
                     'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
                     'tackles': stat.tackles, 'losses': stat.losses
                 }
         event = db.session.get(Event, int(event_id)) if event_id else None
-        return jsonify({
-            'html': render_template('fragments/edit_stats.html'),
-            'data': {
-                'event_id': event_id, 'event_title': event.title if event else '',
-                'player_id': player_id, 'player_name': player_name,
-                'position': position, 'stats_level': stats_level,
-                'existing_stats': existing_stats
-            }
-        })
+        return jsonify({'html': render_template('fragments/edit_stats.html'),
+                        'data': {'event_id': event_id, 'event_title': event.title if event else '',
+                                 'player_id': player_id, 'player_name': body.get('player_name', ''),
+                                 'position': position, 'stats_level': stats_level,
+                                 'existing_stats': existing_stats}})
 
     if route == '/player-match-stats':
         event_id = body.get('event_id')
@@ -502,11 +638,8 @@ def api_fragment():
         if not event:
             return jsonify({'redirect': '/dashboard'})
         team_id = get_current_team_id()
-
-        # Позиция игрока
         player_ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id).first()
         position = player_ut.position if player_ut else 'forward'
-
         stat = MatchStat.query.filter_by(player_id=user.id, event_id=int(event_id)).first()
         stat_data = None
         if stat:
@@ -516,21 +649,17 @@ def api_fragment():
                 'minutes_played': stat.minutes_played, 'rating': stat.rating,
                 'saves': stat.saves, 'goals_conceded': stat.goals_conceded,
                 'gk_passes_total': stat.gk_passes_total, 'gk_passes_accurate': stat.gk_passes_accurate,
-                'gk_losses': stat.gk_losses,
-                'goal_kicks_total': stat.goal_kicks_total, 'goal_kicks_accurate': stat.goal_kicks_accurate,
+                'gk_losses': stat.gk_losses, 'goal_kicks_total': stat.goal_kicks_total,
+                'goal_kicks_accurate': stat.goal_kicks_accurate,
                 'shots_total': stat.shots_total, 'shots_on_target': stat.shots_on_target,
                 'passes_total': stat.passes_total, 'passes_accurate': stat.passes_accurate,
                 'tackles': stat.tackles, 'losses': stat.losses
             }
-        return jsonify({
-            'html': render_template('fragments/player_match_stats.html'),
-            'data': {
-                'event': {'id': event.id, 'title': event.title,
-                          'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                          'event_type': event.event_type, 'location': event.location},
-                'stat': stat_data, 'stats_level': stats_level, 'position': position
-            }
-        })
+        return jsonify({'html': render_template('fragments/player_match_stats.html'),
+                        'data': {'event': {'id': event.id, 'title': event.title,
+                                           'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                                           'event_type': event.event_type, 'location': event.location},
+                                 'stat': stat_data, 'stats_level': stats_level, 'position': position}})
 
     if route == '/dashboard':
         team_id = get_current_team_id()
@@ -541,6 +670,7 @@ def api_fragment():
             return jsonify({'redirect': '/select-team'})
         team = db.session.get(Team, team_id)
         events = Event.query.filter_by(team_id=team_id).order_by(Event.event_date).all()
+        pos_labels = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}
 
         if ut.role == 'coach':
             members = UserTeam.query.filter_by(team_id=team_id, role='player').all()
@@ -548,23 +678,23 @@ def api_fragment():
             for m in members:
                 p = db.session.get(User, m.user_id)
                 if p:
-                    pos_label = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}.get(m.position, '⚡ Нападающий')
-                    players.append({
-                        'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
-                        'position': m.position or 'forward', 'position_label': pos_label
-                    })
+                    players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
+                                    'position': m.position or 'forward',
+                                    'position_label': pos_labels.get(m.position, '⚡ Нападающий')})
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code,
                          'city': team.city, 'stats_level': team.stats_level} if team else None,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                'events': [{'id': e.id, 'title': e.title,
+                            'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
                             'event_type': e.event_type, 'location': e.location} for e in events],
                 'players': players
             }
             return jsonify({'html': render_template('fragments/coach_dashboard.html'), 'data': data})
         else:
-            my_stats = MatchStat.query.filter_by(player_id=user.id).all()
             position = ut.position or 'forward'
+            my_stats = MatchStat.query.filter_by(player_id=user.id).all()
+
             total_stats = {
                 'games': len(set(s.event_id for s in my_stats)),
                 'goals': sum(s.goals for s in my_stats),
@@ -573,6 +703,7 @@ def api_fragment():
                 'red_cards': sum(s.red_cards for s in my_stats),
                 'pass_accuracy': 0
             }
+
             if position == 'goalkeeper':
                 total_saves = sum(s.saves for s in my_stats)
                 total_conceded = sum(s.goals_conceded for s in my_stats)
@@ -585,14 +716,21 @@ def api_fragment():
                 if total_passes > 0:
                     total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
 
+            # Генерируем советы только для детального тарифа
+            advice = []
+            if team and team.stats_level == 'detailed' and my_stats:
+                advice = generate_advice(my_stats, position)
+
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name, 'stats_level': team.stats_level} if team else None,
                 'position': position,
-                'events': [{'id': e.id, 'title': e.title, 'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
+                'events': [{'id': e.id, 'title': e.title,
+                            'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
                             'event_type': e.event_type, 'location': e.location,
                             'has_stats': MatchStat.query.filter_by(player_id=user.id, event_id=e.id).first() is not None} for e in events],
-                'stats': total_stats
+                'stats': total_stats,
+                'advice': advice
             }
             return jsonify({'html': render_template('fragments/player_dashboard.html'), 'data': data})
 
