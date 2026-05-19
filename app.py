@@ -750,6 +750,12 @@ def api_fragment():
             }
             return jsonify({'html': render_template('fragments/player_dashboard.html'), 'data': data})
 
+    if route == '/rules':
+        return jsonify({
+            'html': render_template('fragments/rules.html'),
+            'data': {'back_route': body.get('back_route', '/dashboard')}
+        })
+
     return jsonify({'error': 'Not found'}), 404
 
 

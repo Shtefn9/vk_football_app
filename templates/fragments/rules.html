@@ -1,0 +1,66 @@
+<style>
+.back-btn-top { background:none; border:none; color:#667eea; font-size:15px; cursor:pointer; padding:0; margin-bottom:15px; display:block; }
+.rules-section { margin-bottom:20px; }
+.rules-section h2 { font-size:16px; color:#667eea; margin-bottom:8px; }
+.rules-section p { font-size:14px; color:#555; line-height:1.6; margin-bottom:8px; }
+.rules-divider { border:none; border-top:1px solid #f0f0f0; margin:15px 0; }
+</style>
+
+<div class="container">
+    <button class="back-btn-top" id="back-btn">← Назад</button>
+
+    <h1 style="margin-bottom:20px;">📋 Правила сервиса</h1>
+
+    <div class="rules-section">
+        <h2>О сервисе</h2>
+        <p>Well Played — приложение для ведения статистики любительских футбольных команд. Тренер создаёт команду, вносит статистику игроков после матчей. Игроки получают доступ к своей статистике и персональным рекомендациям.</p>
+    </div>
+
+    <hr class="rules-divider">
+
+    <div class="rules-section">
+        <h2>Тарифы</h2>
+        <p><strong>Базовый (бесплатно)</strong> — голы, передачи, карточки, сыгранные минуты.</p>
+        <p><strong>Детальный (199 ₽ за сезон)</strong> — расширенная статистика, рейтинг игрока за матч, персональные советы. Доступен пробный период 7 дней бесплатно.</p>
+    </div>
+
+    <hr class="rules-divider">
+
+    <div class="rules-section">
+        <h2>Оплата</h2>
+        <p>Оплата осуществляется через VK Pay. Оплата доступна только в веб-версии ВКонтакте (vk.com). В мобильном приложении VK оплата недоступна согласно правилам платформы.</p>
+        <p>После успешной оплаты детальный тариф активируется немедленно.</p>
+    </div>
+
+    <hr class="rules-divider">
+
+    <div class="rules-section">
+        <h2>Возврат средств</h2>
+        <p>Возврат средств возможен в течение 14 дней с момента оплаты при условии, что детальный тариф не использовался (статистика не вносилась).</p>
+        <p>Для оформления возврата обратитесь в поддержку.</p>
+    </div>
+
+    <hr class="rules-divider">
+
+    <div class="rules-section">
+        <h2>Контакты и поддержка</h2>
+        <p>По вопросам работы приложения и возврату средств обращайтесь через сообщения в группе ВКонтакте или по email поддержки.</p>
+    </div>
+
+    <hr class="rules-divider">
+
+    <div class="rules-section">
+        <h2>Правила использования</h2>
+        <p>Запрещается использовать приложение для публикации оскорбительного контента, спама или иных действий нарушающих правила ВКонтакте.</p>
+        <p>Администрация оставляет за собой право заблокировать аккаунт при нарушении правил без возврата средств.</p>
+    </div>
+</div>
+
+<script>
+(function() {
+    var data = Router.currentData || {};
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate(data.back_route || '/dashboard');
+    };
+})();
+</script>

@@ -27,6 +27,7 @@
 
     <div class="dropdown-menu" id="dropdown-menu">
         <button class="dropdown-item upgrade" id="upgrade-item" style="display:none;">💎 Управление тарифом</button>
+        <button class="dropdown-item" id="rules-item">📋 Правила сервиса</button>
         <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
         <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
     </div>
@@ -150,6 +151,9 @@
     document.addEventListener('click', function() { dropdownMenu.classList.remove('open'); });
     document.getElementById('upgrade-item').onclick = function() {
         Router.navigate('/select-stats', { is_upgrade: true, current_stats_level: statsLevel });
+    };
+    document.getElementById('rules-item').onclick = function() {
+        Router.navigate('/rules', { back_route: '/dashboard' });
     };
     document.getElementById('switch-team-item').onclick = async function() {
         await API.leaveTeam(); Router.navigate('/select-team');
