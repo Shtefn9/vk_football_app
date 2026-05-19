@@ -17,15 +17,19 @@ class Team(db.Model):
     city = db.Column(db.String(100), default='')
     join_code = db.Column(db.String(10), unique=True, nullable=False)
     stats_level = db.Column(db.String(20), default='basic')
-    # Пробный период — 7 дней детального тарифа бесплатно
-    trial_until = db.Column(db.DateTime, nullable=True)
+    trial_until = db.Column(db.DateTime, nullable=True)  # пробный период 7 дней
+    subscription_until = db.Column(db.DateTime, nullable=True)  # платная подписка 90 дней
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     members = db.relationship('UserTeam', backref='team', lazy=True)
 
     @property
     def effective_stats_level(self):
-        """Возвращает реальный тариф с учётом пробного периода"""
-        if self.trial_until and datetime.now(timezone.utc) < self.trial_until.replace(tzinfo=timezone.utc):
+        now = datetime.now()
+        # Активна платная подписка
+        if self.subscription_until and now < self.subscription_until:
+            return 'detailed'
+        # Активен пробный период
+        if self.trial_until and now < self.trial_until:
             return 'detailed'
         return self.stats_level
 

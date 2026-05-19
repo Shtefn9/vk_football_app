@@ -12,6 +12,15 @@ const API = {
         return data;
     },
 
+    subscribe: async function() {
+    const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId })
+    });
+    return await res.json();
+    },
+
     selectTeam: async function(teamId) {
         const res = await fetch('/api/select-team', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

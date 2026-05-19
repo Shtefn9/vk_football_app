@@ -759,5 +759,36 @@ def api_fragment():
     return jsonify({'error': 'Not found'}), 404
 
 
+
+@app.route('/api/subscribe', methods=['POST'])
+def api_subscribe():
+    """Активирует платную подписку на 90 дней"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        team_id = get_current_team_id()
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+        if not ut:
+            return jsonify({'error': 'Только тренер может активировать подписку'}), 403
+        team = db.session.get(Team, team_id)
+        if not team:
+            return jsonify({'error': 'Команда не найдена'}), 404
+        now = datetime.now()
+        if team.subscription_until and team.subscription_until > now:
+            team.subscription_until = team.subscription_until + timedelta(days=90)
+        else:
+            team.subscription_until = now + timedelta(days=90)
+        team.stats_level = 'detailed'
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'subscription_until': team.subscription_until.strftime('%d.%m.%Y')
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
