@@ -9,7 +9,14 @@
 </head>
 <body>
     <div id="app-container"></div>
-
+    <script>
+        // Определяем платформу из URL параметров VK
+        var urlParams = new URLSearchParams(window.location.search);
+        var VK_PLATFORM = urlParams.get('vk_platform') || 'desktop_web';
+        // mobile_web, desktop_web, mobile_android, mobile_iphone, mobile_ipad
+        var IS_MOBILE_APP = ['mobile_android', 'mobile_iphone', 'mobile_ipad'].indexOf(VK_PLATFORM) !== -1;
+        console.log('[App] Platform:', VK_PLATFORM, 'isMobileApp:', IS_MOBILE_APP);
+    </script>
     <script src="/static/api.js"></script>
     <script src="/static/router.js"></script>
 </body>

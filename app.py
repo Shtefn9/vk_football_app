@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, session, jsonify
 from database import db, init_db
 from models import User, Team, UserTeam, Event, MatchStat
-from datetime import datetime
 import random
 import string
 import logging
 import os
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -104,7 +104,7 @@ def generate_advice(stats_list, position):
     avg_assists = total_assists / games
 
     if position == 'forward':
-        # ── НАПАДАЮЩИЙ ──────────────────────────────
+        #   НАПАДАЮЩИЙ
 
         # Голы
         if total_goals == 0:
@@ -161,7 +161,7 @@ def generate_advice(stats_list, position):
                 advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Хорошая точность паса! Можешь пробовать более сложные передачи между линиями.'})
 
     elif position == 'defender':
-        # ── ЗАЩИТНИК ────────────────────────────────
+        #   ЗАЩИТНИК
 
         # Отборы
         total_tackles = sum(s.tackles for s in stats_list)
@@ -210,7 +210,7 @@ def generate_advice(stats_list, position):
             advice.append({'icon': '🟥', 'title': 'Удаления', 'text': 'Удаление дорого обходится команде. Контролируй эмоции и никогда не иди в подкат сзади.'})
 
     elif position == 'goalkeeper':
-        # ── ВРАТАРЬ ─────────────────────────────────
+        #   ВРАТАРЬ
 
         # Процент сейвов
         total_saves = sum(s.saves for s in stats_list)
@@ -274,14 +274,14 @@ def generate_advice(stats_list, position):
     return advice
 
 
-# ─── SPA ──────────────────────────────────────────────────────────────────────
+# SPA
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-# ─── API ──────────────────────────────────────────────────────────────────────
+# API
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
@@ -441,6 +441,31 @@ def api_set_stats_level():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/start-trial', methods=['POST'])
+def api_start_trial():
+    """Активирует пробный период 7 дней детального тарифа"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        team_id = get_current_team_id()
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+        if not ut:
+            return jsonify({'error': 'Только тренер может активировать пробный период'}), 403
+        team = db.session.get(Team, team_id)
+        if not team:
+            return jsonify({'error': 'Команда не найдена'}), 404
+        if team.trial_until and datetime.now() < team.trial_until:
+            return jsonify({'error': 'Пробный период уже активен'}), 400
+        # Устанавливаем пробный период на 7 дней
+        team.trial_until = datetime.now() + timedelta(days=7)
+        db.session.commit()
+        return jsonify({'success': True, 'trial_until': team.trial_until.strftime('%d.%m.%Y')})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/join-team', methods=['POST'])
 def api_join_team():
     user = get_user()
@@ -505,7 +530,7 @@ def api_save_stats():
         player_id = data.get('player_id')
         stats = data.get('stats', {})
         team = db.session.get(Team, team_id)
-        stats_level = team.stats_level if team else 'basic'
+        stats_level = team.effective_stats_level if team else 'basic'
         player_ut = UserTeam.query.filter_by(user_id=player_id, team_id=team_id).first()
         position = player_ut.position if player_ut else 'forward'
         stat = MatchStat.query.filter_by(player_id=player_id, event_id=event_id).first()
@@ -571,9 +596,16 @@ def api_fragment():
     if route == '/select-stats':
         team_id = get_current_team_id()
         team = db.session.get(Team, team_id) if team_id else None
+        trial_active = False
+        trial_until = None
+        if team and team.trial_until and datetime.now() < team.trial_until:
+            trial_active = True
+            trial_until = team.trial_until.strftime('%d.%m.%Y')
         return jsonify({'html': render_template('fragments/select_stats.html'),
                         'data': {'is_upgrade': body.get('is_upgrade', False),
-                                 'current_stats_level': team.stats_level if team else 'basic'}})
+                                 'current_stats_level': team.effective_stats_level if team else 'basic',
+                                 'trial_active': trial_active,
+                                 'trial_until': trial_until}})
 
     if route == '/event-detail':
         event_id = body.get('event_id')
@@ -684,7 +716,7 @@ def api_fragment():
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code,
-                         'city': team.city, 'stats_level': team.stats_level} if team else None,
+                         'city': team.city, 'stats_level': team.effective_stats_level} if team else None,
                 'events': [{'id': e.id, 'title': e.title,
                             'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
                             'event_type': e.event_type, 'location': e.location} for e in events],
@@ -718,7 +750,7 @@ def api_fragment():
 
             # Генерируем советы только для детального тарифа
             advice = []
-            if team and team.stats_level == 'detailed' and my_stats:
+            if team and team.effective_stats_level == 'detailed' and my_stats:
                 advice = generate_advice(my_stats, position)
 
             data = {

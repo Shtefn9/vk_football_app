@@ -40,6 +40,14 @@ const API = {
         return await res.json();
     },
 
+    startTrial: async function() {
+        const res = await fetch('/api/start-trial', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: this.userId, team_id: this.currentTeamId })
+        });
+        return await res.json();
+    },
+
     setPosition: async function(playerId, position) {
         const res = await fetch('/api/set-position', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

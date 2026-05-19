@@ -21,6 +21,16 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+.trial-badge {
+    display: inline-block;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+}
 .plan-price {
     font-size: 22px;
     font-weight: 700;
@@ -33,24 +43,25 @@
 .plan-feature.locked { color: #bbb; }
 .plan-feature.locked::before { content: '🔒 '; }
 .back-btn-top {
-    background: none;
-    border: none;
-    color: #667eea;
-    font-size: 15px;
-    cursor: pointer;
-    padding: 0;
-    margin-bottom: 15px;
-    display: block;
+    background: none; border: none; color: #667eea;
+    font-size: 15px; cursor: pointer; padding: 0;
+    margin-bottom: 15px; display: block;
 }
 .current-badge {
     display: inline-block;
-    background: #e8f5e9;
-    color: #2e7d32;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 8px;
+    background: #e8f5e9; color: #2e7d32;
+    font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 8px;
+}
+.mobile-notice {
+    background: #f8f9ff;
+    border: 1px solid #e5ebf1;
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 15px;
+    text-align: center;
+    font-size: 14px;
+    color: #666;
 }
 </style>
 
@@ -62,7 +73,14 @@
         Выберите формат ведения статистики для вашей команды
     </p>
 
-    <!-- Бесплатный тариф -->
+    <!-- Пробный период -->
+    <div id="trial-block" style="display:none; background:linear-gradient(135deg,#e8f5e9,#c8e6c9); border-radius:16px; padding:20px; margin-bottom:20px; text-align:center;">
+        <div style="font-size:32px;">🎁</div>
+        <div style="font-size:16px; font-weight:700; color:#2e7d32; margin:8px 0;">7 дней детального тарифа бесплатно!</div>
+        <div style="font-size:13px; color:#388e3c;" id="trial-expires"></div>
+    </div>
+
+    <!-- Базовый тариф -->
     <div class="plan-card" id="basic-plan">
         <div id="basic-current-badge" style="display:none;"><div class="current-badge">✓ Текущий тариф</div></div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -75,15 +93,13 @@
         <div class="plan-feature">Голы и передачи</div>
         <div class="plan-feature">Сыгранные матчи</div>
         <div class="plan-feature">Жёлтые и красные карточки</div>
-        <div class="plan-feature locked">Точность паса</div>
-        <div class="plan-feature locked">Удары в створ</div>
-        <div class="plan-feature locked">Отборы и потери</div>
+        <div class="plan-feature locked">Удары, точность паса</div>
         <div class="plan-feature locked">Рейтинг игрока за матч</div>
-        <div class="plan-feature locked">Советы игрокам</div>
+        <div class="plan-feature locked">Персональные советы</div>
         <button class="btn-submit" style="margin-top:15px;" id="basic-btn">Выбрать бесплатный</button>
     </div>
 
-    <!-- Платный тариф -->
+    <!-- Детальный тариф -->
     <div class="plan-card recommended" id="detailed-plan">
         <div class="plan-badge">⭐ Рекомендуем</div>
         <div id="detailed-current-badge" style="display:none;"><div class="current-badge">✓ Текущий тариф</div></div>
@@ -95,12 +111,28 @@
             <div style="font-size:32px;">💎</div>
         </div>
         <div class="plan-feature">Всё из базового тарифа</div>
-        <div class="plan-feature">Точность паса</div>
-        <div class="plan-feature">Удары в створ</div>
+        <div class="plan-feature">Удары в створ, точность паса</div>
         <div class="plan-feature">Отборы и потери</div>
         <div class="plan-feature">Рейтинг игрока за матч (авто)</div>
         <div class="plan-feature">Персональные советы каждому игроку</div>
-        <button class="btn-submit btn-secondary" style="margin-top:15px;" id="detailed-btn">Выбрать детальный</button>
+        <div class="plan-feature">Статистика вратаря (сейвы, вводы)</div>
+
+        <!-- Кнопка оплаты — только для десктопа -->
+        <div id="pay-desktop">
+            <button class="btn-submit btn-secondary" style="margin-top:15px;" id="detailed-btn">
+                Попробовать 7 дней бесплатно
+            </button>
+            <div style="font-size:12px; color:#888; text-align:center; margin-top:8px;">
+                После пробного периода — 199 ₽ за сезон через VK Pay
+            </div>
+        </div>
+
+        <!-- Для мобильного приложения — только уведомление -->
+        <div id="pay-mobile" style="display:none;">
+            <div class="mobile-notice">
+                📱 Для оформления подписки перейдите в <strong>веб-версию ВКонтакте</strong> на компьютере
+            </div>
+        </div>
     </div>
 
     <p style="font-size:12px; color:#aaa; text-align:center; margin-top:10px;">
@@ -110,33 +142,49 @@
 
 <script>
 (function() {
-    console.log('[SelectStats] Fragment loaded');
     var data = Router.currentData || {};
-    var currentLevel = data.current_stats_level || null;
+    var currentLevel = data.current_stats_level || 'basic';
     var isUpgrade = data.is_upgrade || false;
+    var trialUntil = data.trial_until || null;
+    var trialActive = data.trial_active || false;
 
-    // Если это смена тарифа — показываем текущий
+    // Определяем платформу
+    var isMobileApp = typeof IS_MOBILE_APP !== 'undefined' ? IS_MOBILE_APP : false;
+    if (isMobileApp) {
+        document.getElementById('pay-desktop').style.display = 'none';
+        document.getElementById('pay-mobile').style.display = 'block';
+    }
+
+    // Показываем пробный период если он активен
+    if (trialActive) {
+        document.getElementById('trial-block').style.display = 'block';
+        if (trialUntil) {
+            document.getElementById('trial-expires').textContent = 'Действует до: ' + trialUntil;
+        }
+        document.getElementById('detailed-btn').textContent = 'Активен (пробный период)';
+        document.getElementById('detailed-btn').disabled = true;
+        document.getElementById('detailed-btn').style.opacity = '0.7';
+    }
+
     if (isUpgrade) {
         document.getElementById('subtitle').textContent = 'Текущий тариф и доступные улучшения';
         if (currentLevel === 'basic') {
             document.getElementById('basic-current-badge').style.display = 'block';
             document.getElementById('basic-btn').textContent = 'Оставить бесплатный';
-            document.getElementById('basic-btn').style.opacity = '0.6';
+            document.getElementById('basic-btn').style.opacity = '0.7';
         }
         if (currentLevel === 'detailed') {
             document.getElementById('detailed-current-badge').style.display = 'block';
-            document.getElementById('detailed-btn').textContent = 'Уже активен';
-            document.getElementById('detailed-btn').disabled = true;
-            document.getElementById('detailed-btn').style.opacity = '0.6';
+            if (!trialActive) {
+                document.getElementById('detailed-btn').textContent = 'Уже активен';
+                document.getElementById('detailed-btn').disabled = true;
+                document.getElementById('detailed-btn').style.opacity = '0.6';
+            }
         }
     }
 
     document.getElementById('back-btn').onclick = function() {
-        if (isUpgrade) {
-            Router.navigate('/dashboard');
-        } else {
-            Router.navigate('/select-team');
-        }
+        Router.navigate(isUpgrade ? '/dashboard' : '/select-team');
     };
 
     document.getElementById('basic-btn').onclick = async function() {
@@ -154,15 +202,15 @@
 
     document.getElementById('detailed-btn').onclick = async function() {
         if (this.disabled) return;
-        // TODO: интеграция VK Pay
-        this.textContent = 'Обработка...';
+        this.textContent = 'Активируем...';
         this.disabled = true;
-        var result = await API.setStatsLevel('detailed');
+        // Активируем пробный период
+        var result = await API.startTrial();
         if (result.success) {
             Router.navigate('/dashboard');
         } else {
             alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
-            this.textContent = 'Выбрать детальный';
+            this.textContent = 'Попробовать 7 дней бесплатно';
             this.disabled = false;
         }
     };
