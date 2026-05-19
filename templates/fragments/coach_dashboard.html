@@ -80,7 +80,7 @@
     // Баннер пробного периода
     if (trialActive && trialUntil) {
         document.getElementById('trial-banner').style.display = 'flex';
-        document.getElementById('trial-text').textContent = '🎁 Пробный период активен до ' + trialUntil;
+        document.getElementById('trial-text').textContent = 'Пробный период активен до ' + trialUntil;
     }
 
     if (data.team) {
@@ -89,9 +89,7 @@
             (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
             '<div class="join-code">Код: <strong>' + data.team.join_code + '</strong></div>' +
             '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' +
-            (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') +
-            (trialActive && trialUntil ? ' <span style="color:#2e7d32;">(пробный до ' + trialUntil + ')</span>' : '') +
-            '</div>';
+            (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
     }
 
     // Кнопка управления тарифом — всегда показываем
