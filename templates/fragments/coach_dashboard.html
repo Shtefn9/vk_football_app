@@ -15,6 +15,8 @@
 .player-row { display:flex; justify-content:space-between; align-items:center; padding:12px 15px; border:1px solid #e5ebf1; border-radius:10px; margin-bottom:8px; }
 .position-select { border:1px solid #e5ebf1; border-radius:8px; padding:6px 10px; font-size:13px; color:#333; background:white; cursor:pointer; }
 .position-select:focus { border-color:#667eea; outline:none; }
+.trial-banner { background:linear-gradient(135deg, #e8f5e9, #c8e6c9); border-radius:12px; padding:12px 15px; margin-bottom:15px; display:flex; align-items:center; gap:10px; }
+.trial-banner-text { font-size:13px; color:#2e7d32; font-weight:600; }
 </style>
 
 <div class="container" style="position:relative;">
@@ -24,7 +26,7 @@
     </div>
 
     <div class="dropdown-menu" id="dropdown-menu">
-        <button class="dropdown-item upgrade" id="upgrade-item" style="display:none;">💎 Улучшить тариф</button>
+        <button class="dropdown-item upgrade" id="upgrade-item" style="display:none;">💎 Управление тарифом</button>
         <button class="dropdown-item" id="switch-team-item">🔄 Сменить команду</button>
         <button class="dropdown-item danger" id="quit-team-item">🚪 Покинуть команду</button>
     </div>
@@ -32,6 +34,11 @@
     <div class="user-header">
         <div class="user-name" id="user-name"></div>
         <div class="user-role">🎯 Тренер</div>
+    </div>
+
+    <div id="trial-banner" style="display:none;" class="trial-banner">
+        <span style="font-size:20px;">🎁</span>
+        <div class="trial-banner-text" id="trial-text"></div>
     </div>
 
     <div class="team-info" id="team-info"></div>
@@ -65,17 +72,30 @@
 (function() {
     var data = Router.currentData || {};
     var statsLevel = (data.team && data.team.stats_level) || 'basic';
+    var trialActive = data.team && data.team.trial_active;
+    var trialUntil = data.team && data.team.trial_until;
 
     if (data.user) document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+
+    // Баннер пробного периода
+    if (trialActive && trialUntil) {
+        document.getElementById('trial-banner').style.display = 'flex';
+        document.getElementById('trial-text').textContent = '🎁 Пробный период активен до ' + trialUntil;
+    }
+
     if (data.team) {
         document.getElementById('team-info').innerHTML =
             '<div class="team-name">' + data.team.name + '</div>' +
             (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
             '<div class="join-code">Код: <strong>' + data.team.join_code + '</strong></div>' +
-            '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' + (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
+            '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' +
+            (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') +
+            (trialActive && trialUntil ? ' <span style="color:#2e7d32;">(пробный до ' + trialUntil + ')</span>' : '') +
+            '</div>';
     }
 
-    if (statsLevel === 'basic') document.getElementById('upgrade-item').style.display = 'block';
+    // Кнопка управления тарифом — всегда показываем
+    document.getElementById('upgrade-item').style.display = 'block';
 
     // События
     var eventsList = document.getElementById('events-list');
@@ -114,8 +134,6 @@
                 '</select>' +
                 '</div>';
         }).join('');
-
-        // Смена позиции
         document.querySelectorAll('.position-select').forEach(function(sel) {
             sel.onchange = async function() {
                 var playerId = parseInt(this.getAttribute('data-player-id'));
@@ -132,8 +150,12 @@
     var dropdownMenu = document.getElementById('dropdown-menu');
     menuBtn.onclick = function(e) { e.stopPropagation(); dropdownMenu.classList.toggle('open'); };
     document.addEventListener('click', function() { dropdownMenu.classList.remove('open'); });
-    document.getElementById('upgrade-item').onclick = function() { Router.navigate('/select-stats', { is_upgrade: true, current_stats_level: statsLevel }); };
-    document.getElementById('switch-team-item').onclick = async function() { await API.leaveTeam(); Router.navigate('/select-team'); };
+    document.getElementById('upgrade-item').onclick = function() {
+        Router.navigate('/select-stats', { is_upgrade: true, current_stats_level: statsLevel });
+    };
+    document.getElementById('switch-team-item').onclick = async function() {
+        await API.leaveTeam(); Router.navigate('/select-team');
+    };
     document.getElementById('quit-team-item').onclick = async function() {
         if (!confirm('Покинуть команду?')) return;
         var r = await API.quitTeam();

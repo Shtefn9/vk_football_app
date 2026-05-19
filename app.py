@@ -5,7 +5,7 @@ import random
 import string
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -57,6 +57,13 @@ def get_current_team_id():
     return int(team_id) if team_id else None
 
 
+def is_trial_active(team):
+    """Проверяет активен ли пробный период"""
+    if not team or not team.trial_until:
+        return False
+    return datetime.now() < team.trial_until
+
+
 def calculate_rating(stat, position, stats_level):
     if stats_level != 'detailed':
         return 0.0
@@ -88,14 +95,11 @@ def calculate_rating(stat, position, stats_level):
 
 
 def generate_advice(stats_list, position):
-    """Генерирует советы игроку на основе его статистики за все матчи"""
     if not stats_list:
         return []
 
     games = len(stats_list)
     advice = []
-
-    # Общие показатели
     total_goals = sum(s.goals for s in stats_list)
     total_assists = sum(s.assists for s in stats_list)
     total_yellow = sum(s.yellow_cards for s in stats_list)
@@ -104,9 +108,6 @@ def generate_advice(stats_list, position):
     avg_assists = total_assists / games
 
     if position == 'forward':
-        #   НАПАДАЮЩИЙ
-
-        # Голы
         if total_goals == 0:
             advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты ещё не открыл счёт в этом сезоне. Попробуй чаще смещаться в зону удара и не жди идеального момента — бей из любой удобной позиции.'})
         elif avg_goals < 0.2:
@@ -118,7 +119,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты один из лучших бомбардиров! Поддерживай форму и продолжай открываться за спину защитникам.'})
 
-        # Удары в створ
         total_shots = sum(s.shots_total for s in stats_list)
         total_on_target = sum(s.shots_on_target for s in stats_list)
         if total_shots > 0:
@@ -130,7 +130,6 @@ def generate_advice(stats_list, position):
             else:
                 advice.append({'icon': '🎯', 'title': 'Удары', 'text': 'Хорошая точность ударов! Теперь работай над силой удара чтобы вратарю было сложнее отбить.'})
 
-        # Голевые передачи
         if total_assists == 0:
             advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Ни одной голевой передачи. Чаще смотри по сторонам перед ударом — возможно партнёр стоит в лучшей позиции.'})
         elif avg_assists < 0.2:
@@ -138,7 +137,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Хорошее взаимодействие с партнёрами! Продолжай искать открытых игроков в опасных зонах.'})
 
-        # Потери
         total_losses = sum(s.losses for s in stats_list)
         avg_losses = total_losses / games
         if avg_losses > 5:
@@ -148,7 +146,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Хороший контроль мяча! Продолжай играть уверенно под давлением.'})
 
-        # Точность паса
         total_passes = sum(s.passes_total for s in stats_list)
         accurate_passes = sum(s.passes_accurate for s in stats_list)
         if total_passes > 0:
@@ -161,9 +158,6 @@ def generate_advice(stats_list, position):
                 advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Хорошая точность паса! Можешь пробовать более сложные передачи между линиями.'})
 
     elif position == 'defender':
-        #   ЗАЩИТНИК
-
-        # Отборы
         total_tackles = sum(s.tackles for s in stats_list)
         avg_tackles = total_tackles / games
         if avg_tackles == 0:
@@ -175,7 +169,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '🛡', 'title': 'Отборы', 'text': 'Отличная игра в отборе! Следи чтобы не получать карточки за грубые фолы.'})
 
-        # Потери
         total_losses = sum(s.losses for s in stats_list)
         avg_losses = total_losses / games
         if avg_losses > 4:
@@ -185,7 +178,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Надёжный контроль мяча в защите! Продолжай играть уверенно.'})
 
-        # Точность паса
         total_passes = sum(s.passes_total for s in stats_list)
         accurate_passes = sum(s.passes_accurate for s in stats_list)
         if total_passes > 0:
@@ -197,22 +189,16 @@ def generate_advice(stats_list, position):
             else:
                 advice.append({'icon': '📊', 'title': 'Точность паса', 'text': 'Отличная точность паса! Ты надёжное звено в начале атак команды.'})
 
-        # Голы и передачи защитника
         if total_goals > 0:
             advice.append({'icon': '⚽', 'title': 'Голы', 'text': 'Ты забил как защитник — отлично подключился в атаку! Главное не забывать возвращаться назад после атаки.'})
         if total_assists > 0:
             advice.append({'icon': '🤝', 'title': 'Передачи', 'text': 'Голевая передача от защитника — значит ты хорошо читаешь игру и вовремя подключаешься к атакам.'})
-
-        # Карточки
-        if total_yellow / games > 0.3:
+        if games > 0 and total_yellow / games > 0.3:
             advice.append({'icon': '🟨', 'title': 'Дисциплина', 'text': 'Слишком много жёлтых карточек. Учись встречать соперника корпусом а не ногой.'})
         if total_red > 0:
             advice.append({'icon': '🟥', 'title': 'Удаления', 'text': 'Удаление дорого обходится команде. Контролируй эмоции и никогда не иди в подкат сзади.'})
 
     elif position == 'goalkeeper':
-        #   ВРАТАРЬ
-
-        # Процент сейвов
         total_saves = sum(s.saves for s in stats_list)
         total_conceded = sum(s.goals_conceded for s in stats_list)
         if (total_saves + total_conceded) > 0:
@@ -226,7 +212,6 @@ def generate_advice(stats_list, position):
             else:
                 advice.append({'icon': '🧤', 'title': 'Сейвы', 'text': 'Отличная игра! Ты держишь команду в игре. Поддерживай концентрацию до финального свистка.'})
 
-        # Пропущенные голы
         avg_conceded = total_conceded / games
         if avg_conceded == 0:
             advice.append({'icon': '🏆', 'title': 'Сухие матчи', 'text': 'Не пропустил ни одного гола — лучший результат для вратаря! Продолжай держать концентрацию весь матч.'})
@@ -237,7 +222,6 @@ def generate_advice(stats_list, position):
         else:
             advice.append({'icon': '🔴', 'title': 'Пропущенные голы', 'text': 'Тяжёлые матчи. Поговори с тренером о позиционных ошибках и серьёзно работай над выбором позиции.'})
 
-        # Точность передач вратаря
         total_passes = sum(s.gk_passes_total for s in stats_list)
         accurate_passes = sum(s.gk_passes_accurate for s in stats_list)
         if total_passes > 0:
@@ -249,7 +233,6 @@ def generate_advice(stats_list, position):
             else:
                 advice.append({'icon': '📊', 'title': 'Передачи', 'text': 'Отличная точность передач! Ты хорошо начинаешь атаки команды.'})
 
-        # Точность вводов
         total_kicks = sum(s.goal_kicks_total for s in stats_list)
         accurate_kicks = sum(s.goal_kicks_accurate for s in stats_list)
         if total_kicks > 0:
@@ -261,12 +244,11 @@ def generate_advice(stats_list, position):
             else:
                 advice.append({'icon': '🦵', 'title': 'Вводы мяча', 'text': 'Хорошая точность вводов! Ты эффективно начинаешь атаки от ворот.'})
 
-        # Потери вратаря
-        total_losses = sum(s.gk_losses for s in stats_list)
-        avg_losses = total_losses / games
-        if avg_losses > 3:
+        total_gk_losses = sum(s.gk_losses for s in stats_list)
+        avg_gk_losses = total_gk_losses / games
+        if avg_gk_losses > 3:
             advice.append({'icon': '🔴', 'title': 'Потери', 'text': 'Много потерь для вратаря — это очень опасно. В своей штрафной всегда играй надёжно и не рискуй с обводкой.'})
-        elif avg_losses > 1:
+        elif avg_gk_losses > 1:
             advice.append({'icon': '⚠️', 'title': 'Потери', 'text': 'Есть потери. Вратарю нельзя рисковать с мячом в штрафной — играй проще.'})
         else:
             advice.append({'icon': '✅', 'title': 'Потери', 'text': 'Ни одной потери — отличная надёжность! Продолжай играть уверенно с мячом.'})
@@ -274,14 +256,14 @@ def generate_advice(stats_list, position):
     return advice
 
 
-# SPA
+# ─── SPA ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-# API
+# ─── API ──────────────────────────────────────────────────────────────────────
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
@@ -443,7 +425,6 @@ def api_set_stats_level():
 
 @app.route('/api/start-trial', methods=['POST'])
 def api_start_trial():
-    """Активирует пробный период 7 дней детального тарифа"""
     user = get_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
@@ -455,9 +436,8 @@ def api_start_trial():
         team = db.session.get(Team, team_id)
         if not team:
             return jsonify({'error': 'Команда не найдена'}), 404
-        if team.trial_until and datetime.now() < team.trial_until:
+        if is_trial_active(team):
             return jsonify({'error': 'Пробный период уже активен'}), 400
-        # Устанавливаем пробный период на 7 дней
         team.trial_until = datetime.now() + timedelta(days=7)
         db.session.commit()
         return jsonify({'success': True, 'trial_until': team.trial_until.strftime('%d.%m.%Y')})
@@ -596,11 +576,8 @@ def api_fragment():
     if route == '/select-stats':
         team_id = get_current_team_id()
         team = db.session.get(Team, team_id) if team_id else None
-        trial_active = False
-        trial_until = None
-        if team and team.trial_until and datetime.now() < team.trial_until:
-            trial_active = True
-            trial_until = team.trial_until.strftime('%d.%m.%Y')
+        trial_active = is_trial_active(team)
+        trial_until = team.trial_until.strftime('%d.%m.%Y') if trial_active else None
         return jsonify({'html': render_template('fragments/select_stats.html'),
                         'data': {'is_upgrade': body.get('is_upgrade', False),
                                  'current_stats_level': team.effective_stats_level if team else 'basic',
@@ -631,7 +608,8 @@ def api_fragment():
                         'data': {'event': {'id': event.id, 'title': event.title,
                                            'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
                                            'event_type': event.event_type, 'location': event.location},
-                                 'players': players, 'stats_level': team.stats_level if team else 'basic'}})
+                                 'players': players,
+                                 'stats_level': team.effective_stats_level if team else 'basic'}})
 
     if route == '/edit-stats':
         event_id = body.get('event_id')
@@ -713,10 +691,19 @@ def api_fragment():
                     players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
                                     'position': m.position or 'forward',
                                     'position_label': pos_labels.get(m.position, '⚡ Нападающий')})
+
+            # Информация о пробном периоде
+            trial_active = is_trial_active(team)
+            trial_until = team.trial_until.strftime('%d.%m.%Y') if trial_active else None
+
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {'id': team.id, 'name': team.name, 'join_code': team.join_code,
-                         'city': team.city, 'stats_level': team.effective_stats_level} if team else None,
+                'team': {
+                    'id': team.id, 'name': team.name, 'join_code': team.join_code,
+                    'city': team.city, 'stats_level': team.effective_stats_level,
+                    'trial_active': trial_active,
+                    'trial_until': trial_until
+                } if team else None,
                 'events': [{'id': e.id, 'title': e.title,
                             'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
                             'event_type': e.event_type, 'location': e.location} for e in events],
@@ -726,7 +713,6 @@ def api_fragment():
         else:
             position = ut.position or 'forward'
             my_stats = MatchStat.query.filter_by(player_id=user.id).all()
-
             total_stats = {
                 'games': len(set(s.event_id for s in my_stats)),
                 'goals': sum(s.goals for s in my_stats),
@@ -735,7 +721,6 @@ def api_fragment():
                 'red_cards': sum(s.red_cards for s in my_stats),
                 'pass_accuracy': 0
             }
-
             if position == 'goalkeeper':
                 total_saves = sum(s.saves for s in my_stats)
                 total_conceded = sum(s.goals_conceded for s in my_stats)
@@ -748,14 +733,13 @@ def api_fragment():
                 if total_passes > 0:
                     total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
 
-            # Генерируем советы только для детального тарифа
             advice = []
             if team and team.effective_stats_level == 'detailed' and my_stats:
                 advice = generate_advice(my_stats, position)
 
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
-                'team': {'name': team.name, 'stats_level': team.stats_level} if team else None,
+                'team': {'name': team.name, 'stats_level': team.effective_stats_level} if team else None,
                 'position': position,
                 'events': [{'id': e.id, 'title': e.title,
                             'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
