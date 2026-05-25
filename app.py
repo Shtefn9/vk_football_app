@@ -1,11 +1,13 @@
-from flask import Flask, render_template, request, session, jsonify
+from flask import Flask, render_template, request, session, jsonify, redirect
 from database import db, init_db
 from models import User, Team, UserTeam, Event, MatchStat
 import random
 import string
 import logging
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
+from yookassa import Configuration, Payment
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -18,6 +20,14 @@ app.config['SECRET_KEY'] = 'vk_football_secret_2024'
 app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+# ЮКасса — ключи из переменных окружения Railway
+YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '1365798')
+YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
+Configuration.account_id = YOOKASSA_SHOP_ID
+Configuration.secret_key = YOOKASSA_SECRET_KEY
+
+BASE_URL = os.environ.get('BASE_URL', 'https://vk-football-app-vyn4-production.up.railway.app')
 
 init_db(app)
 
@@ -58,7 +68,6 @@ def get_current_team_id():
 
 
 def is_trial_active(team):
-    """Проверяет активен ли пробный период"""
     if not team or not team.trial_until:
         return False
     return datetime.now() < team.trial_until
@@ -67,7 +76,6 @@ def is_trial_active(team):
 def calculate_rating(stat, position, stats_level):
     if stats_level != 'detailed':
         return 0.0
-
     if position == 'goalkeeper':
         total = stat.saves + stat.goals_conceded
         save_pct = stat.saves / total if total > 0 else 0.0
@@ -90,14 +98,12 @@ def calculate_rating(stat, position, stats_level):
         rating -= min(stat.losses, 5) * 0.15
         rating -= stat.yellow_cards * 0.5
         rating -= stat.red_cards * 2.0
-
     return round(max(1.0, min(10.0, rating)), 1)
 
 
 def generate_advice(stats_list, position):
     if not stats_list:
         return []
-
     games = len(stats_list)
     advice = []
     total_goals = sum(s.goals for s in stats_list)
@@ -446,6 +452,99 @@ def api_start_trial():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/create-payment', methods=['POST'])
+def api_create_payment():
+    """Создаёт платёж в ЮКассе и возвращает ссылку на оплату"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        team_id = get_current_team_id()
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+        if not ut:
+            return jsonify({'error': 'Только тренер может оплатить подписку'}), 403
+
+        idempotence_key = str(uuid.uuid4())
+        payment = Payment.create({
+            'amount': {
+                'value': '199.00',
+                'currency': 'RUB'
+            },
+            'confirmation': {
+                'type': 'redirect',
+                'return_url': f'{BASE_URL}/payment-success?team_id={team_id}&user_id={user.id}'
+            },
+            'capture': True,
+            'description': f'Детальный тариф Well Played — 3 месяца (команда ID {team_id})',
+            'metadata': {
+                'team_id': str(team_id),
+                'user_id': str(user.id)
+            }
+        }, idempotence_key)
+
+        return jsonify({
+            'success': True,
+            'payment_url': payment.confirmation.confirmation_url,
+            'payment_id': payment.id
+        })
+    except Exception as e:
+        app.logger.error(f"create_payment error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/payment-success')
+def payment_success():
+    """Страница возврата после оплаты — активирует подписку и редиректит в VK"""
+    team_id = request.args.get('team_id')
+    user_id = request.args.get('user_id')
+
+    if team_id and user_id:
+        try:
+            team = db.session.get(Team, int(team_id))
+            if team:
+                now = datetime.now()
+                if team.subscription_until and team.subscription_until > now:
+                    team.subscription_until = team.subscription_until + timedelta(days=90)
+                else:
+                    team.subscription_until = now + timedelta(days=90)
+                team.stats_level = 'detailed'
+                db.session.commit()
+                app.logger.info(f"Subscription activated: team {team_id}, until {team.subscription_until}")
+        except Exception as e:
+            app.logger.error(f"payment_success error: {e}")
+            db.session.rollback()
+
+    # Редирект обратно в VK приложение
+    return redirect(f'https://vk.com/app54481828')
+
+
+@app.route('/api/subscribe', methods=['POST'])
+def api_subscribe():
+    """Ручная активация подписки"""
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        team_id = get_current_team_id()
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
+        if not ut:
+            return jsonify({'error': 'Только тренер может активировать подписку'}), 403
+        team = db.session.get(Team, team_id)
+        if not team:
+            return jsonify({'error': 'Команда не найдена'}), 404
+        now = datetime.now()
+        if team.subscription_until and team.subscription_until > now:
+            team.subscription_until = team.subscription_until + timedelta(days=90)
+        else:
+            team.subscription_until = now + timedelta(days=90)
+        team.stats_level = 'detailed'
+        db.session.commit()
+        return jsonify({'success': True, 'subscription_until': team.subscription_until.strftime('%d.%m.%Y')})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/join-team', methods=['POST'])
 def api_join_team():
     user = get_user()
@@ -578,11 +677,15 @@ def api_fragment():
         team = db.session.get(Team, team_id) if team_id else None
         trial_active = is_trial_active(team)
         trial_until = team.trial_until.strftime('%d.%m.%Y') if trial_active else None
+        sub_active = team and team.subscription_until and datetime.now() < team.subscription_until
+        sub_until = team.subscription_until.strftime('%d.%m.%Y') if sub_active else None
         return jsonify({'html': render_template('fragments/select_stats.html'),
                         'data': {'is_upgrade': body.get('is_upgrade', False),
                                  'current_stats_level': team.effective_stats_level if team else 'basic',
                                  'trial_active': trial_active,
-                                 'trial_until': trial_until}})
+                                 'trial_until': trial_until,
+                                 'sub_active': sub_active,
+                                 'sub_until': sub_until}})
 
     if route == '/event-detail':
         event_id = body.get('event_id')
@@ -691,18 +794,14 @@ def api_fragment():
                     players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
                                     'position': m.position or 'forward',
                                     'position_label': pos_labels.get(m.position, '⚡ Нападающий')})
-
-            # Информация о пробном периоде
             trial_active = is_trial_active(team)
             trial_until = team.trial_until.strftime('%d.%m.%Y') if trial_active else None
-
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {
                     'id': team.id, 'name': team.name, 'join_code': team.join_code,
                     'city': team.city, 'stats_level': team.effective_stats_level,
-                    'trial_active': trial_active,
-                    'trial_until': trial_until
+                    'trial_active': trial_active, 'trial_until': trial_until
                 } if team else None,
                 'events': [{'id': e.id, 'title': e.title,
                             'event_date': e.event_date.strftime('%d.%m.%Y %H:%M'),
@@ -732,11 +831,9 @@ def api_fragment():
                 accurate_passes = sum(s.passes_accurate for s in my_stats)
                 if total_passes > 0:
                     total_stats['pass_accuracy'] = round(accurate_passes / total_passes * 100)
-
             advice = []
             if team and team.effective_stats_level == 'detailed' and my_stats:
                 advice = generate_advice(my_stats, position)
-
             data = {
                 'user': {'first_name': user.first_name, 'last_name': user.last_name},
                 'team': {'name': team.name, 'stats_level': team.effective_stats_level} if team else None,
@@ -757,37 +854,6 @@ def api_fragment():
         })
 
     return jsonify({'error': 'Not found'}), 404
-
-
-
-@app.route('/api/subscribe', methods=['POST'])
-def api_subscribe():
-    """Активирует платную подписку на 90 дней"""
-    user = get_user()
-    if not user:
-        return jsonify({'error': 'unauthorized'}), 401
-    try:
-        team_id = get_current_team_id()
-        ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
-        if not ut:
-            return jsonify({'error': 'Только тренер может активировать подписку'}), 403
-        team = db.session.get(Team, team_id)
-        if not team:
-            return jsonify({'error': 'Команда не найдена'}), 404
-        now = datetime.now()
-        if team.subscription_until and team.subscription_until > now:
-            team.subscription_until = team.subscription_until + timedelta(days=90)
-        else:
-            team.subscription_until = now + timedelta(days=90)
-        team.stats_level = 'detailed'
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'subscription_until': team.subscription_until.strftime('%d.%m.%Y')
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

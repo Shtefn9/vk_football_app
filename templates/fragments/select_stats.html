@@ -96,7 +96,7 @@
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
                 <div style="font-size:18px; font-weight:700; color:#333;">🏆 Детальный</div>
-                <div class="plan-price">199 ₽ <span>на 3 месяца</span></div>
+                <div class="plan-price">199 ₽ <span>за сезон</span></div>
             </div>
             <div style="font-size:32px;">💎</div>
         </div>
@@ -109,12 +109,15 @@
 
         <!-- Кнопка оплаты — только для десктопа -->
         <div id="pay-desktop">
-            <button class="btn-submit btn-secondary" style="margin-top:15px;" id="detailed-btn">
+            <button class="btn-submit btn-secondary" style="margin-top:15px;" id="detailed-btn" data-action="trial">
                 Попробовать 7 дней бесплатно
             </button>
             <div style="font-size:12px; color:#888; text-align:center; margin-top:8px;">
-                После пробного периода — 199 ₽ за сезон через VK Pay
+                После пробного периода — 199 ₽ на 3 месяца через ЮКассу
             </div>
+            <button class="btn-submit" style="margin-top:8px;background:linear-gradient(135deg,#f77062,#fe5196);" id="pay-now-btn">
+                💳 Оплатить сразу — 199 ₽
+            </button>
         </div>
 
         <!-- Для мобильного приложения — только уведомление -->
@@ -181,6 +184,23 @@
         basicBtn.textContent = 'Недоступно при детальном тарифе';
     }
 
+    // Кнопка прямой оплаты
+    var payNowBtn = document.getElementById('pay-now-btn');
+    if (payNowBtn) {
+        payNowBtn.onclick = async function() {
+            this.textContent = 'Открываем оплату...';
+            this.disabled = true;
+            var result = await API.createPayment();
+            if (result.success && result.payment_url) {
+                window.open(result.payment_url, '_blank');
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            }
+            this.textContent = '💳 Оплатить сразу — 199 ₽';
+            this.disabled = false;
+        };
+    }
+
     document.getElementById('back-btn').onclick = function() {
         Router.navigate(isUpgrade ? '/dashboard' : '/select-team');
     };
@@ -201,15 +221,35 @@
 
     document.getElementById('detailed-btn').onclick = async function() {
         if (this.disabled) return;
-        this.textContent = 'Активируем...';
-        this.disabled = true;
-        var result = await API.startTrial();
-        if (result.success) {
-            Router.navigate('/dashboard');
+
+        var isTrial = this.getAttribute('data-action') === 'trial';
+
+        if (isTrial) {
+            // Активируем пробный период
+            this.textContent = 'Активируем...';
+            this.disabled = true;
+            var result = await API.startTrial();
+            if (result.success) {
+                Router.navigate('/dashboard');
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+                this.textContent = 'Попробовать 7 дней бесплатно';
+                this.disabled = false;
+            }
         } else {
-            alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
-            this.textContent = 'Попробовать 7 дней бесплатно';
-            this.disabled = false;
+            // Создаём платёж в ЮКассе
+            this.textContent = 'Открываем оплату...';
+            this.disabled = true;
+            var result = await API.createPayment();
+            if (result.success && result.payment_url) {
+                window.open(result.payment_url, '_blank');
+                this.textContent = 'Оформить подписку — 199 ₽';
+                this.disabled = false;
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+                this.textContent = 'Оформить подписку — 199 ₽';
+                this.disabled = false;
+            }
         }
     };
 })();
