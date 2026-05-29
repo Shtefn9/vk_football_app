@@ -7,6 +7,8 @@
 .counter-btn { width:34px; height:34px; border-radius:50%; border:2px solid #667eea; background:white; color:#667eea; font-size:20px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .counter-btn:hover { background:#f0f4ff; }
 .counter-val { font-size:18px; font-weight:700; color:#333; min-width:24px; text-align:center; }
+.stat-number-input { width:80px; padding:8px 10px; border:2px solid #e5ebf1; border-radius:8px; font-size:16px; font-weight:700; color:#333; text-align:center; }
+.stat-number-input:focus { border-color:#667eea; outline:none; }
 .section-divider { background:#f8f9ff; border-radius:10px; padding:10px 15px; margin:15px 0 5px; font-size:13px; font-weight:700; color:#667eea; text-transform:uppercase; letter-spacing:0.5px; }
 .back-btn-top { background:none; border:none; color:#667eea; font-size:15px; cursor:pointer; padding:0; margin-bottom:15px; display:block; }
 </style>
@@ -44,12 +46,20 @@
             '</div></div>';
     }
 
+    function renderNumberInput(f, val) {
+        return '<div class="stat-input-group">' +
+            '<div><div class="stat-label-text">' + f.label + '</div>' +
+            (f.sub ? '<div class="stat-label-sub">' + f.sub + '</div>' : '') + '</div>' +
+            '<input type="number" min="0" class="stat-number-input" data-field="' + f.id + '" value="' + val + '">' +
+            '</div>';
+    }
+
     var commonFields = [
         { id: 'goals', label: 'Голы' },
         { id: 'assists', label: 'Голевые передачи' },
         { id: 'yellow_cards', label: 'Жёлтые карточки' },
         { id: 'red_cards', label: 'Красные карточки' },
-        { id: 'minutes_played', label: 'Сыгранные минуты' }
+        { id: 'minutes_played', label: 'Сыгранные минуты', input: true }
     ];
 
     var gkBasic = [
@@ -58,11 +68,11 @@
     ];
 
     var gkDetailed = [
-        { id: 'gk_passes_total', label: 'Передачи', sub: 'всего' },
-        { id: 'gk_passes_accurate', label: 'Точные передачи' },
+        { id: 'gk_passes_total', label: 'Передачи', sub: 'всего', input: true },
+        { id: 'gk_passes_accurate', label: 'Точные передачи', input: true },
         { id: 'gk_losses', label: 'Потери мяча' },
-        { id: 'goal_kicks_total', label: 'Вводы мяча', sub: 'всего' },
-        { id: 'goal_kicks_accurate', label: 'Точные вводы' }
+        { id: 'goal_kicks_total', label: 'Вводы мяча', sub: 'всего', input: true },
+        { id: 'goal_kicks_accurate', label: 'Точные вводы', input: true }
     ];
 
     var fieldBasic = [
@@ -71,8 +81,8 @@
     ];
 
     var fieldDetailed = [
-        { id: 'passes_total', label: 'Передачи', sub: 'всего' },
-        { id: 'passes_accurate', label: 'Точные передачи' },
+        { id: 'passes_total', label: 'Передачи', sub: 'всего', input: true },
+        { id: 'passes_accurate', label: 'Точные передачи', input: true },
         { id: 'tackles', label: 'Отборы' },
         { id: 'losses', label: 'Потери мяча' }
     ];
@@ -87,29 +97,43 @@
 
     allFields.forEach(function(f) { values[f.id] = existing[f.id] || 0; });
 
+    function renderField(f) {
+        return f.input ? renderNumberInput(f, values[f.id]) : renderCounter(f, values[f.id]);
+    }
+
     var html = '<div class="section-divider">⚽ Основное</div>';
-    commonFields.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+    commonFields.forEach(function(f) { html += renderField(f); });
 
     if (position === 'goalkeeper') {
         html += '<div class="section-divider">🧤 Статистика вратаря</div>';
-        gkBasic.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+        gkBasic.forEach(function(f) { html += renderField(f); });
         if (statsLevel === 'detailed') {
             html += '<div class="section-divider">📊 Детальная</div>';
-            gkDetailed.forEach(function(f) { html += renderCounter(f, values[f.id]); });
+            gkDetailed.forEach(function(f) { html += renderField(f); });
         }
     } else if (statsLevel === 'detailed') {
         html += '<div class="section-divider">📊 Детальная статистика</div>';
-        fieldBasic.concat(fieldDetailed).forEach(function(f) { html += renderCounter(f, values[f.id]); });
+        fieldBasic.concat(fieldDetailed).forEach(function(f) { html += renderField(f); });
     }
 
     document.getElementById('stats-form').innerHTML = html;
 
+    // Кнопки-счётчики
     document.querySelectorAll('.counter-btn').forEach(function(btn) {
         btn.onclick = function() {
             var field = this.getAttribute('data-field');
             var action = this.getAttribute('data-action');
             values[field] = action === 'plus' ? (values[field] || 0) + 1 : Math.max(0, (values[field] || 0) - 1);
             document.getElementById('val-' + field).textContent = values[field];
+        };
+    });
+
+    // Поля ввода числа
+    document.querySelectorAll('.stat-number-input').forEach(function(input) {
+        input.oninput = function() {
+            var field = this.getAttribute('data-field');
+            var num = parseInt(this.value, 10);
+            values[field] = isNaN(num) || num < 0 ? 0 : num;
         };
     });
 
