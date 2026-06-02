@@ -48,7 +48,7 @@
         <h2>📅 Календарь</h2>
         <button class="add-event-btn" id="toggle-form-btn">➕ Добавить событие</button>
         <div id="add-event-form" style="display:none; background:#f8f9ff; border-radius:12px; padding:15px; margin-bottom:15px;">
-            <div class="form-group"><input type="text" id="ev-title" placeholder="Название события" maxlength="50" required></div>
+            <div class="form-group"><input type="text" id="ev-title" placeholder="Название события" maxlength="30" required></div>
             <div class="form-group"><input type="datetime-local" id="ev-date" required></div>
             <div class="form-group">
                 <select id="ev-type">
@@ -56,7 +56,7 @@
                     <option value="match">Матч</option>
                 </select>
             </div>
-            <div class="form-group"><input type="text" id="ev-location" placeholder="Место проведения" maxlength="50"></div>
+            <div class="form-group"><input type="text" id="ev-location" placeholder="Место проведения" maxlength="30"></div>
             <button id="save-event-btn" class="btn-submit">Добавить</button>
         </div>
         <div id="events-list"></div>
@@ -77,13 +77,11 @@
     var trialUntil = data.team && data.team.trial_until;
 
     if (data.user) {
-        // textContent безопасен — экранирование не нужно
         document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
     }
 
     if (trialActive && trialUntil) {
         document.getElementById('trial-banner').style.display = 'flex';
-        // textContent безопасен
         document.getElementById('trial-text').textContent = 'Пробный период активен до ' + trialUntil;
     }
 
@@ -98,11 +96,10 @@
 
     document.getElementById('upgrade-item').style.display = 'block';
 
-    // События
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
-            return '<div class="event event-clickable" data-event-id="' + parseInt(e.id) + '" data-event-type="' + escapeHtml(e.event_type) + '">' +
+            return '<div class="event event-clickable" data-event-id="' + parseInt(e.id) + '">' +
                 '<span class="event-arrow">›</span>' +
                 '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + escapeHtml(e.title) + '</div>' +
                 '<div class="event-date">' + escapeHtml(e.event_date) + '</div>' +
@@ -120,7 +117,6 @@
         eventsList.innerHTML = '<p class="empty-state">Пока нет событий.</p>';
     }
 
-    // Состав
     var playersList = document.getElementById('players-list');
     if (data.players && data.players.length > 0) {
         playersList.innerHTML = data.players.map(function(p) {
@@ -144,7 +140,6 @@
         playersList.innerHTML = '<p class="empty-state">Игроки ещё не вступили в команду.</p>';
     }
 
-    // Меню
     var menuBtn = document.getElementById('menu-btn');
     var dropdownMenu = document.getElementById('dropdown-menu');
     menuBtn.onclick = function(e) { e.stopPropagation(); dropdownMenu.classList.toggle('open'); };
@@ -176,7 +171,11 @@
         var location = document.getElementById('ev-location').value.trim();
         if (!title || !date) { alert('Заполните название и дату'); return; }
         if (title.length > 30) { alert('Название слишком длинное (максимум 30 символов)'); return; }
-        if (location.length > 50) { alert('Место проведения слишком длинное (максимум 50 символов)'); return; }
+        if (location.length > 30) { alert('Место проведения слишком длинное (максимум 30 символов)'); return; }
+        if (/[<>]/.test(title) || /[<>]/.test(location)) {
+            alert('Недопустимые символы в названии или месте');
+            return;
+        }
         this.textContent = 'Сохраняем...';
         var r = await API.addEvent({ title: title, event_date: date, event_type: type, location: location });
         if (r.success) Router.navigate('/dashboard');

@@ -6,6 +6,7 @@ import string
 import logging
 import os
 import uuid
+import re
 import hmac
 import hashlib
 import base64
@@ -25,16 +26,27 @@ app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
-# ЮКасса — ключи из переменных окружения Railway
+# ЮКасса
 YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '1365798')
 YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
 Configuration.account_id = YOOKASSA_SHOP_ID
 Configuration.secret_key = YOOKASSA_SECRET_KEY
 
-# Секретный ключ VK Mini App для проверки подписи запуска
+# Секретный ключ VK Mini App
 VK_SECURE_KEY = os.environ.get('VK_SECURE_KEY', '')
 
 BASE_URL = os.environ.get('BASE_URL', 'https://vk-football-app-vyn4-production.up.railway.app')
+
+# Регулярка для опасных символов
+DANGEROUS_PATTERN = re.compile(r'[<>]')
+
+
+def is_safe_text(text):
+    """Проверяет что в тексте нет HTML-тегов или подозрительных символов"""
+    if not text:
+        return True
+    return not DANGEROUS_PATTERN.search(text)
+
 
 init_db(app)
 
@@ -52,7 +64,7 @@ def add_headers(response):
 
 def verify_vk_launch_params(launch_params_str):
     """
-    Проверяет подпись параметров запуска VK Mini App.
+    Проверяет HMAC-подпись параметров запуска VK Mini App.
     Возвращает vk_user_id если подпись валидна, иначе None.
     """
     if not VK_SECURE_KEY or not launch_params_str:
@@ -74,7 +86,7 @@ def verify_vk_launch_params(launch_params_str):
         ).digest()
         expected_sign = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
         if expected_sign != sign:
-            app.logger.warning(f"VK sign mismatch: expected {expected_sign}, got {sign}")
+            app.logger.warning(f"VK sign mismatch")
             return None
         vk_user_id = vk_params.get('vk_user_id')
         return int(vk_user_id) if vk_user_id else None
@@ -85,8 +97,8 @@ def verify_vk_launch_params(launch_params_str):
 
 def get_user():
     """
-    Получает текущего пользователя ТОЛЬКО через проверенную подпись VK.
-    Никогда не доверяет полю uid из тела запроса.
+    Получает пользователя ТОЛЬКО через проверенную подпись VK.
+    Никогда не доверяет uid из тела.
     """
     body = request.get_json(silent=True) or {}
     launch_params = body.get('vk_launch_params')
@@ -99,11 +111,8 @@ def get_user():
                 session['user_id'] = user.id
                 session.modified = True
                 return user
-            # Если пользователя нет в БД — но подпись валидна — это нормально
-            # для первого запроса перед /api/vk-auth
             return None
 
-    # Fallback на сессию (только если уже была валидная авторизация ранее)
     user_id = session.get('user_id')
     if user_id:
         user = db.session.get(User, user_id)
@@ -113,10 +122,6 @@ def get_user():
 
 
 def get_current_team_id():
-    """
-    Получает team_id из сессии или тела запроса.
-    Проверка прав на команду выполняется в каждом маршруте отдельно.
-    """
     team_id = session.get('current_team_id')
     if not team_id:
         body = request.get_json(silent=True) or {}
@@ -330,10 +335,7 @@ def index():
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
-    """
-    Создаёт или обновляет пользователя.
-    vk_id берётся ИСКЛЮЧИТЕЛЬНО из подписанных параметров VK, никогда из тела.
-    """
+    """vk_id берётся ИСКЛЮЧИТЕЛЬНО из подписанных параметров VK"""
     try:
         body = request.get_json() or {}
         launch_params = body.get('vk_launch_params')
@@ -341,10 +343,9 @@ def api_vk_auth():
         if not vk_id:
             return jsonify({'error': 'Invalid VK signature'}), 401
 
-        # Имя/фамилия/фото берём из тела (это данные профиля от VK Bridge на клиенте)
-        first_name = body.get('first_name', '')
-        last_name = body.get('last_name', '')
-        photo = body.get('photo', '')
+        first_name = (body.get('first_name') or '').strip()[:50]
+        last_name = (body.get('last_name') or '').strip()[:50]
+        photo = (body.get('photo') or '')[:500]
         if not first_name:
             return jsonify({'error': 'Missing fields'}), 400
 
@@ -409,7 +410,6 @@ def api_quit_team():
     try:
         data = request.get_json()
         team_id = data.get('team_id') or get_current_team_id()
-        # Проверка: пользователь действительно состоит в этой команде
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id).first()
         if not ut:
             return jsonify({'error': 'Вы не состоите в этой команде'}), 404
@@ -460,6 +460,8 @@ def api_create_team():
         city = (data.get('city') or '').strip()[:30]
         if not team_name:
             return jsonify({'error': 'Название команды обязательно'}), 400
+        if not is_safe_text(team_name) or not is_safe_text(city):
+            return jsonify({'error': 'Недопустимые символы в названии или городе'}), 400
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         team = Team(name=team_name, city=city,
                     join_code=join_code, stats_level=data.get('stats_level', 'basic'))
@@ -485,6 +487,8 @@ def api_set_stats_level():
         data = request.get_json()
         team_id = data.get('team_id') or get_current_team_id()
         stats_level = data.get('stats_level', 'basic')
+        if stats_level not in ('basic', 'detailed'):
+            return jsonify({'error': 'Неверный тариф'}), 400
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first()
         if not ut:
             return jsonify({'error': 'Только тренер может менять тариф'}), 403
@@ -610,7 +614,9 @@ def api_join_team():
         return jsonify({'error': 'unauthorized'}), 401
     try:
         data = request.get_json()
-        join_code = data.get('join_code', '').upper().strip()
+        join_code = (data.get('join_code') or '').upper().strip()[:10]
+        if not join_code:
+            return jsonify({'error': 'Введите код'}), 400
         team = Team.query.filter_by(join_code=join_code).first()
         if not team:
             return jsonify({'error': 'Команда с таким кодом не найдена'}), 404
@@ -646,6 +652,8 @@ def api_add_event():
         event_type = data.get('event_type', 'training')
         if not title:
             return jsonify({'error': 'Название обязательно'}), 400
+        if not is_safe_text(title) or not is_safe_text(location):
+            return jsonify({'error': 'Недопустимые символы в названии или месте'}), 400
         if event_type not in ('match', 'training'):
             return jsonify({'error': 'Неверный тип события'}), 400
         event = Event(team_id=team_id, title=title,
@@ -674,12 +682,10 @@ def api_save_stats():
         player_id = data.get('player_id')
         stats = data.get('stats', {})
 
-        # Проверка: событие принадлежит этой команде
         event = db.session.get(Event, int(event_id)) if event_id else None
         if not event or event.team_id != team_id:
             return jsonify({'error': 'Событие не найдено в этой команде'}), 404
 
-        # Проверка: игрок состоит в этой команде
         player_ut = UserTeam.query.filter_by(user_id=player_id, team_id=team_id).first()
         if not player_ut:
             return jsonify({'error': 'Игрок не состоит в этой команде'}), 404
@@ -691,26 +697,33 @@ def api_save_stats():
         if not stat:
             stat = MatchStat(player_id=player_id, event_id=event_id)
             db.session.add(stat)
-        stat.goals = stats.get('goals', 0)
-        stat.assists = stats.get('assists', 0)
-        stat.yellow_cards = stats.get('yellow_cards', 0)
-        stat.red_cards = stats.get('red_cards', 0)
-        stat.minutes_played = stats.get('minutes_played', 0)
+
+        def safe_int(v, default=0):
+            try:
+                return max(0, int(v))
+            except (ValueError, TypeError):
+                return default
+
+        stat.goals = safe_int(stats.get('goals'))
+        stat.assists = safe_int(stats.get('assists'))
+        stat.yellow_cards = safe_int(stats.get('yellow_cards'))
+        stat.red_cards = safe_int(stats.get('red_cards'))
+        stat.minutes_played = safe_int(stats.get('minutes_played'))
         if position == 'goalkeeper':
-            stat.saves = stats.get('saves', 0)
-            stat.goals_conceded = stats.get('goals_conceded', 0)
-            stat.gk_passes_total = stats.get('gk_passes_total', 0)
-            stat.gk_passes_accurate = stats.get('gk_passes_accurate', 0)
-            stat.gk_losses = stats.get('gk_losses', 0)
-            stat.goal_kicks_total = stats.get('goal_kicks_total', 0)
-            stat.goal_kicks_accurate = stats.get('goal_kicks_accurate', 0)
+            stat.saves = safe_int(stats.get('saves'))
+            stat.goals_conceded = safe_int(stats.get('goals_conceded'))
+            stat.gk_passes_total = safe_int(stats.get('gk_passes_total'))
+            stat.gk_passes_accurate = safe_int(stats.get('gk_passes_accurate'))
+            stat.gk_losses = safe_int(stats.get('gk_losses'))
+            stat.goal_kicks_total = safe_int(stats.get('goal_kicks_total'))
+            stat.goal_kicks_accurate = safe_int(stats.get('goal_kicks_accurate'))
         else:
-            stat.shots_total = stats.get('shots_total', 0)
-            stat.shots_on_target = stats.get('shots_on_target', 0)
-            stat.passes_total = stats.get('passes_total', 0)
-            stat.passes_accurate = stats.get('passes_accurate', 0)
-            stat.tackles = stats.get('tackles', 0)
-            stat.losses = stats.get('losses', 0)
+            stat.shots_total = safe_int(stats.get('shots_total'))
+            stat.shots_on_target = safe_int(stats.get('shots_on_target'))
+            stat.passes_total = safe_int(stats.get('passes_total'))
+            stat.passes_accurate = safe_int(stats.get('passes_accurate'))
+            stat.tackles = safe_int(stats.get('tackles'))
+            stat.losses = safe_int(stats.get('losses'))
         stat.rating = calculate_rating(stat, position, stats_level)
         db.session.commit()
         return jsonify({'success': True})
@@ -749,7 +762,6 @@ def api_fragment():
 
     if route == '/select-stats':
         team_id = get_current_team_id()
-        # Проверка: пользователь — тренер этой команды
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=team_id, role='coach').first() if team_id else None
         team = db.session.get(Team, team_id) if (team_id and ut) else None
         trial_active = is_trial_active(team)
@@ -771,8 +783,6 @@ def api_fragment():
         event = db.session.get(Event, int(event_id))
         if not event:
             return jsonify({'redirect': '/dashboard'})
-        team_id = get_current_team_id()
-        # Проверка: пользователь состоит в команде этого события
         ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id).first()
         if not ut:
             return jsonify({'error': 'Нет доступа к событию'}), 403
@@ -800,7 +810,6 @@ def api_fragment():
         player_id = body.get('player_id')
         position = body.get('position', 'forward')
         stats_level = body.get('stats_level', 'basic')
-        # Проверка: пользователь — тренер команды этого события
         event = db.session.get(Event, int(event_id)) if event_id else None
         if not event:
             return jsonify({'error': 'Событие не найдено'}), 404
@@ -837,12 +846,10 @@ def api_fragment():
         event = db.session.get(Event, int(event_id))
         if not event:
             return jsonify({'redirect': '/dashboard'})
-        # Проверка: пользователь состоит в команде этого события
         player_ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id).first()
         if not player_ut:
             return jsonify({'error': 'Нет доступа к событию'}), 403
         position = player_ut.position if player_ut else 'forward'
-        # Игрок может смотреть только СВОЮ статистику
         stat = MatchStat.query.filter_by(player_id=user.id, event_id=int(event_id)).first()
         stat_data = None
         if stat:

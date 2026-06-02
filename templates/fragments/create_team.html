@@ -4,7 +4,7 @@
 
     <div class="form-group">
         <label>Название команды *</label>
-        <input type="text" id="team_name" maxlength="30" required placeholder="Например: Спартак">
+        <input type="text" id="team_name" maxlength="30" required placeholder="Например: FC Spartak">
     </div>
     <div class="form-group">
         <label>Город</label>
@@ -25,20 +25,26 @@
     document.getElementById('submit-btn').onclick = async function() {
         var teamName = document.getElementById('team_name').value.trim();
         var city = document.getElementById('city').value.trim();
+        var errEl = document.getElementById('error-msg');
 
         if (!teamName) {
-            document.getElementById('error-msg').textContent = 'Введите название команды';
-            document.getElementById('error-msg').style.display = 'block';
+            errEl.textContent = 'Введите название команды';
+            errEl.style.display = 'block';
             return;
         }
         if (teamName.length > 30) {
-            document.getElementById('error-msg').textContent = 'Название слишком длинное (максимум 30 символов)';
-            document.getElementById('error-msg').style.display = 'block';
+            errEl.textContent = 'Название слишком длинное (максимум 30 символов)';
+            errEl.style.display = 'block';
             return;
         }
         if (city.length > 30) {
-            document.getElementById('error-msg').textContent = 'Название города слишком длинное (максимум 30 символов)';
-            document.getElementById('error-msg').style.display = 'block';
+            errEl.textContent = 'Название города слишком длинное (максимум 30 символов)';
+            errEl.style.display = 'block';
+            return;
+        }
+        if (/[<>]/.test(teamName) || /[<>]/.test(city)) {
+            errEl.textContent = 'Недопустимые символы в названии или городе';
+            errEl.style.display = 'block';
             return;
         }
 
@@ -49,8 +55,8 @@
         if (result.success) {
             Router.navigate('/select-stats');
         } else {
-            document.getElementById('error-msg').textContent = 'Ошибка: ' + (result.error || 'неизвестная ошибка');
-            document.getElementById('error-msg').style.display = 'block';
+            errEl.textContent = 'Ошибка: ' + (result.error || 'неизвестная ошибка');
+            errEl.style.display = 'block';
             document.getElementById('submit-btn').textContent = 'Далее →';
             document.getElementById('submit-btn').disabled = false;
         }
