@@ -495,9 +495,13 @@ def api_set_stats_level():
         team = db.session.get(Team, team_id)
         if not team:
             return jsonify({'error': 'Команда не найдена'}), 404
-        team.stats_level = stats_level
+        if stats_level == 'detailed':
+            return jsonify({
+                'error': 'Детальный тариф доступен только через пробный период или оплату подписки'
+            }), 403
+        team.stats_level = 'basic'
         db.session.commit()
-        return jsonify({'success': True, 'stats_level': stats_level})
+        return jsonify({'success': True, 'stats_level': 'basic'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
