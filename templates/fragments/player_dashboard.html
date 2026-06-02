@@ -66,9 +66,11 @@ function showTab(name) {
     var data = Router.currentData || {};
     var statsLevel = (data.team && data.team.stats_level) || 'basic';
 
-    if (data.user) document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    if (data.user) {
+        document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    }
     if (data.team) {
-        document.getElementById('team-info').innerHTML = '<div class="team-name">' + data.team.name + '</div>';
+        document.getElementById('team-info').innerHTML = '<div class="team-name">' + escapeHtml(data.team.name) + '</div>';
     } else {
         document.getElementById('team-info').innerHTML = '<p style="color:#666;">Вы не состоите в команде</p>';
     }
@@ -79,11 +81,11 @@ function showTab(name) {
         eventsList.innerHTML = data.events.map(function(e) {
             var isMatch = e.event_type === 'match';
             return '<div class="event ' + (isMatch ? 'event-clickable' : '') + '" ' +
-                (isMatch ? 'data-event-id="' + e.id + '" data-event-title="' + e.title + '"' : '') + '>' +
+                (isMatch ? 'data-event-id="' + parseInt(e.id) + '"' : '') + '>' +
                 (isMatch ? '<span class="event-arrow">›</span>' : '') +
-                '<div class="event-title">' + (isMatch ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
-                '<div class="event-date">' + e.event_date + '</div>' +
-                (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
+                '<div class="event-title">' + (isMatch ? '⚽' : '🏃') + ' ' + escapeHtml(e.title) + '</div>' +
+                '<div class="event-date">' + escapeHtml(e.event_date) + '</div>' +
+                (e.location ? '<div class="event-location">📍 ' + escapeHtml(e.location) + '</div>' : '') +
                 (isMatch && e.has_stats ? '<div style="font-size:12px;color:#4caf50;margin-top:4px;">✓ Статистика внесена</div>' : '') +
                 (isMatch && !e.has_stats ? '<div style="font-size:12px;color:#bbb;margin-top:4px;">— Статистика ещё не внесена</div>' : '') +
                 '</div>';
@@ -92,7 +94,6 @@ function showTab(name) {
             el.onclick = function() {
                 Router.navigate('/player-match-stats', {
                     event_id: parseInt(this.getAttribute('data-event-id')),
-                    event_title: this.getAttribute('data-event-title'),
                     stats_level: statsLevel
                 });
             };
@@ -101,29 +102,29 @@ function showTab(name) {
         eventsList.innerHTML = '<p class="empty-state">Пока нет запланированных событий</p>';
     }
 
-    // Статистика
+    // Статистика (только числа — экранирование не критично, но для единообразия)
     var stats = data.stats || { games: 0, goals: 0, assists: 0, yellow_cards: 0, red_cards: 0, pass_accuracy: 0 };
     var position = data.position || 'forward';
 
     if (position === 'goalkeeper') {
         document.getElementById('stats-grid').innerHTML =
-            '<div class="stat-card"><div class="stat-value">' + stats.games + '</div><div class="stat-label">Матчей</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + (stats.saves || 0) + '</div><div class="stat-label">Сейвов</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + (stats.goals_conceded || 0) + '</div><div class="stat-label">Пропущено</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + (stats.save_pct || 0) + '%</div><div class="stat-label">% сейвов</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.yellow_cards + '</div><div class="stat-label">ЖК</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.red_cards + '</div><div class="stat-label">КК</div></div>';
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.games) + '</div><div class="stat-label">Матчей</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.saves || 0) + '</div><div class="stat-label">Сейвов</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.goals_conceded || 0) + '</div><div class="stat-label">Пропущено</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.save_pct || 0) + '%</div><div class="stat-label">% сейвов</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.yellow_cards) + '</div><div class="stat-label">ЖК</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.red_cards) + '</div><div class="stat-label">КК</div></div>';
     } else {
         document.getElementById('stats-grid').innerHTML =
-            '<div class="stat-card"><div class="stat-value">' + stats.games + '</div><div class="stat-label">Матчей</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.goals + '</div><div class="stat-label">Голов</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.assists + '</div><div class="stat-label">Передач</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.yellow_cards + '</div><div class="stat-label">ЖК</div></div>' +
-            '<div class="stat-card"><div class="stat-value">' + stats.red_cards + '</div><div class="stat-label">КК</div></div>' +
-            (statsLevel === 'detailed' ? '<div class="stat-card"><div class="stat-value">' + stats.pass_accuracy + '%</div><div class="stat-label">Точность</div></div>' : '');
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.games) + '</div><div class="stat-label">Матчей</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.goals) + '</div><div class="stat-label">Голов</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.assists) + '</div><div class="stat-label">Передач</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.yellow_cards) + '</div><div class="stat-label">ЖК</div></div>' +
+            '<div class="stat-card"><div class="stat-value">' + parseInt(stats.red_cards) + '</div><div class="stat-label">КК</div></div>' +
+            (statsLevel === 'detailed' ? '<div class="stat-card"><div class="stat-value">' + parseInt(stats.pass_accuracy) + '%</div><div class="stat-label">Точность</div></div>' : '');
     }
 
-    // Советы
+    // Советы (тексты приходят из app.py, не от пользователей — безопасно, но для единообразия экранируем)
     var adviceEl = document.getElementById('advice-content');
     if (statsLevel !== 'detailed') {
         adviceEl.innerHTML =
@@ -142,8 +143,8 @@ function showTab(name) {
     } else if (data.advice && data.advice.length > 0) {
         adviceEl.innerHTML = data.advice.map(function(a) {
             return '<div class="advice" style="margin-bottom:12px;">' +
-                '<div class="advice-title">' + a.icon + ' ' + a.title + '</div>' +
-                '<div class="advice-text">' + a.text + '</div>' +
+                '<div class="advice-title">' + escapeHtml(a.icon) + ' ' + escapeHtml(a.title) + '</div>' +
+                '<div class="advice-text">' + escapeHtml(a.text) + '</div>' +
                 '</div>';
         }).join('');
     } else {

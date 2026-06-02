@@ -27,17 +27,15 @@
     var statsLevel = data.stats_level || 'basic';
     var position = data.position || 'forward';
 
-    // Заголовок события
     if (data.event) {
         document.getElementById('event-header').innerHTML =
             '<div style="background:#f8f9ff;border-radius:12px;padding:15px;">' +
-            '<div style="font-size:18px;font-weight:700;color:#333;">⚽ ' + data.event.title + '</div>' +
-            '<div style="color:#667eea;font-size:14px;margin-top:4px;">' + data.event.event_date + '</div>' +
-            (data.event.location ? '<div style="color:#888;font-size:13px;">📍 ' + data.event.location + '</div>' : '') +
+            '<div style="font-size:18px;font-weight:700;color:#333;">⚽ ' + escapeHtml(data.event.title) + '</div>' +
+            '<div style="color:#667eea;font-size:14px;margin-top:4px;">' + escapeHtml(data.event.event_date) + '</div>' +
+            (data.event.location ? '<div style="color:#888;font-size:13px;">📍 ' + escapeHtml(data.event.location) + '</div>' : '') +
             '</div>';
     }
 
-    // Бейдж позиции
     var posLabels = { goalkeeper: '🧤 Вратарь', defender: '🛡 Защитник', forward: '⚡ Нападающий' };
     document.getElementById('position-badge').innerHTML =
         '<span style="background:#f0f4ff;color:#667eea;font-size:13px;font-weight:600;padding:5px 12px;border-radius:20px;">' +
@@ -72,58 +70,53 @@
 
     var html = '';
 
-    // Рейтинг — только детальный тариф
     if (statsLevel === 'detailed' && stat.rating > 0) {
         html += '<div class="rating-block">' +
-            '<div class="rating-number">' + stat.rating + '</div>' +
+            '<div class="rating-number">' + parseFloat(stat.rating) + '</div>' +
             '<div class="rating-label">Рейтинг за матч</div>' +
             '</div>';
     }
 
     if (position === 'goalkeeper') {
-        // ── ВРАТАРЬ ──────────────────────────────
         var savePct = pct(stat.saves, stat.goals_conceded);
-
         html += '<div class="section-divider">🧤 Статистика вратаря</div>';
-        html += renderRow('Сейвы', stat.saves);
-        html += renderRow('Пропущено голов', stat.goals_conceded);
+        html += renderRow('Сейвы', parseInt(stat.saves));
+        html += renderRow('Пропущено голов', parseInt(stat.goals_conceded));
         html += '<div class="stat-row"><div class="stat-row-label">Процент сейвов</div>' +
             '<div class="stat-row-value">' + savePct + '%</div></div>' +
             '<div class="save-pct-bar"><div class="save-pct-fill" style="width:' + savePct + '%"></div></div>';
 
         html += '<div class="section-divider">⚽ Общее</div>';
-        html += renderRow('Голы', stat.goals);
-        html += renderRow('Голевые передачи', stat.assists);
-        html += renderRow('Сыгранные минуты', stat.minutes_played + ' мин');
-        html += renderRow('Жёлтые карточки', stat.yellow_cards);
-        html += renderRow('Красные карточки', stat.red_cards);
+        html += renderRow('Голы', parseInt(stat.goals));
+        html += renderRow('Голевые передачи', parseInt(stat.assists));
+        html += renderRow('Сыгранные минуты', parseInt(stat.minutes_played) + ' мин');
+        html += renderRow('Жёлтые карточки', parseInt(stat.yellow_cards));
+        html += renderRow('Красные карточки', parseInt(stat.red_cards));
 
         if (statsLevel === 'detailed') {
             html += '<div class="section-divider">📊 Детально</div>';
             var gkPassPct = passPct(stat.gk_passes_accurate, stat.gk_passes_total);
-            html += renderRow('Передачи', stat.gk_passes_total + ' (' + gkPassPct + '% точных)');
-            html += renderRow('Потери мяча', stat.gk_losses);
+            html += renderRow('Передачи', parseInt(stat.gk_passes_total) + ' (' + gkPassPct + '% точных)');
+            html += renderRow('Потери мяча', parseInt(stat.gk_losses));
             var kickPct = passPct(stat.goal_kicks_accurate, stat.goal_kicks_total);
-            html += renderRow('Вводы мяча', stat.goal_kicks_total + ' (' + kickPct + '% точных)');
+            html += renderRow('Вводы мяча', parseInt(stat.goal_kicks_total) + ' (' + kickPct + '% точных)');
         }
-
     } else {
-        // ── ПОЛЕВОЙ ИГРОК ─────────────────────────
         html += '<div class="section-divider">⚽ Основное</div>';
-        html += renderRow('Голы', stat.goals);
-        html += renderRow('Голевые передачи', stat.assists);
-        html += renderRow('Сыгранные минуты', stat.minutes_played + ' мин');
-        html += renderRow('Жёлтые карточки', stat.yellow_cards);
-        html += renderRow('Красные карточки', stat.red_cards);
+        html += renderRow('Голы', parseInt(stat.goals));
+        html += renderRow('Голевые передачи', parseInt(stat.assists));
+        html += renderRow('Сыгранные минуты', parseInt(stat.minutes_played) + ' мин');
+        html += renderRow('Жёлтые карточки', parseInt(stat.yellow_cards));
+        html += renderRow('Красные карточки', parseInt(stat.red_cards));
 
         if (statsLevel === 'detailed') {
             html += '<div class="section-divider">📊 Детально</div>';
-            html += renderRow('Удары', stat.shots_total);
-            html += renderRow('Удары в створ', stat.shots_on_target);
+            html += renderRow('Удары', parseInt(stat.shots_total));
+            html += renderRow('Удары в створ', parseInt(stat.shots_on_target));
             var fieldPassPct = passPct(stat.passes_accurate, stat.passes_total);
-            html += renderRow('Передачи', stat.passes_total + ' (' + fieldPassPct + '% точных)');
-            html += renderRow('Отборы', stat.tackles);
-            html += renderRow('Потери мяча', stat.losses);
+            html += renderRow('Передачи', parseInt(stat.passes_total) + ' (' + fieldPassPct + '% точных)');
+            html += renderRow('Отборы', parseInt(stat.tackles));
+            html += renderRow('Потери мяча', parseInt(stat.losses));
         }
     }
 

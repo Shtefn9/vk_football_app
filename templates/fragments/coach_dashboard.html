@@ -48,7 +48,7 @@
         <h2>📅 Календарь</h2>
         <button class="add-event-btn" id="toggle-form-btn">➕ Добавить событие</button>
         <div id="add-event-form" style="display:none; background:#f8f9ff; border-radius:12px; padding:15px; margin-bottom:15px;">
-            <div class="form-group"><input type="text" id="ev-title" placeholder="Название события" required></div>
+            <div class="form-group"><input type="text" id="ev-title" placeholder="Название события" maxlength="50" required></div>
             <div class="form-group"><input type="datetime-local" id="ev-date" required></div>
             <div class="form-group">
                 <select id="ev-type">
@@ -56,7 +56,7 @@
                     <option value="match">Матч</option>
                 </select>
             </div>
-            <div class="form-group"><input type="text" id="ev-location" placeholder="Место проведения"></div>
+            <div class="form-group"><input type="text" id="ev-location" placeholder="Место проведения" maxlength="50"></div>
             <button id="save-event-btn" class="btn-submit">Добавить</button>
         </div>
         <div id="events-list"></div>
@@ -76,43 +76,43 @@
     var trialActive = data.team && data.team.trial_active;
     var trialUntil = data.team && data.team.trial_until;
 
-    if (data.user) document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    if (data.user) {
+        // textContent безопасен — экранирование не нужно
+        document.getElementById('user-name').textContent = data.user.first_name + ' ' + data.user.last_name;
+    }
 
-    // Баннер пробного периода
     if (trialActive && trialUntil) {
         document.getElementById('trial-banner').style.display = 'flex';
+        // textContent безопасен
         document.getElementById('trial-text').textContent = 'Пробный период активен до ' + trialUntil;
     }
 
     if (data.team) {
         document.getElementById('team-info').innerHTML =
-            '<div class="team-name">' + data.team.name + '</div>' +
-            (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + data.team.city + '</div>' : '') +
-            '<div class="join-code">Код: <strong>' + data.team.join_code + '</strong></div>' +
+            '<div class="team-name">' + escapeHtml(data.team.name) + '</div>' +
+            (data.team.city ? '<div style="color:#666;font-size:14px;">📍 ' + escapeHtml(data.team.city) + '</div>' : '') +
+            '<div class="join-code">Код: <strong>' + escapeHtml(data.team.join_code) + '</strong></div>' +
             '<div style="font-size:12px;color:#888;margin-top:4px;">Тариф: ' +
             (statsLevel === 'detailed' ? '💎 Детальный' : '⚽ Базовый') + '</div>';
     }
 
-    // Кнопка управления тарифом — всегда показываем
     document.getElementById('upgrade-item').style.display = 'block';
 
     // События
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
-            return '<div class="event event-clickable" data-event-id="' + e.id + '" data-event-title="' + e.title + '" data-event-type="' + e.event_type + '">' +
+            return '<div class="event event-clickable" data-event-id="' + parseInt(e.id) + '" data-event-type="' + escapeHtml(e.event_type) + '">' +
                 '<span class="event-arrow">›</span>' +
-                '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + e.title + '</div>' +
-                '<div class="event-date">' + e.event_date + '</div>' +
-                (e.location ? '<div class="event-location">📍 ' + e.location + '</div>' : '') +
+                '<div class="event-title">' + (e.event_type === 'match' ? '⚽' : '🏃') + ' ' + escapeHtml(e.title) + '</div>' +
+                '<div class="event-date">' + escapeHtml(e.event_date) + '</div>' +
+                (e.location ? '<div class="event-location">📍 ' + escapeHtml(e.location) + '</div>' : '') +
                 '</div>';
         }).join('');
         document.querySelectorAll('.event-clickable').forEach(function(el) {
             el.onclick = function() {
                 Router.navigate('/event-detail', {
-                    event_id: parseInt(this.getAttribute('data-event-id')),
-                    event_title: this.getAttribute('data-event-title'),
-                    event_type: this.getAttribute('data-event-type')
+                    event_id: parseInt(this.getAttribute('data-event-id'))
                 });
             };
         });
@@ -120,13 +120,13 @@
         eventsList.innerHTML = '<p class="empty-state">Пока нет событий.</p>';
     }
 
-    // Состав с выбором позиции
+    // Состав
     var playersList = document.getElementById('players-list');
     if (data.players && data.players.length > 0) {
         playersList.innerHTML = data.players.map(function(p) {
             return '<div class="player-row">' +
-                '<div style="font-weight:600;color:#333;">' + p.first_name + ' ' + p.last_name + '</div>' +
-                '<select class="position-select" data-player-id="' + p.id + '">' +
+                '<div style="font-weight:600;color:#333;">' + escapeHtml(p.first_name) + ' ' + escapeHtml(p.last_name) + '</div>' +
+                '<select class="position-select" data-player-id="' + parseInt(p.id) + '">' +
                 '<option value="forward" ' + (p.position === 'forward' ? 'selected' : '') + '>⚡ Нападающий</option>' +
                 '<option value="defender" ' + (p.position === 'defender' ? 'selected' : '') + '>🛡 Защитник</option>' +
                 '<option value="goalkeeper" ' + (p.position === 'goalkeeper' ? 'selected' : '') + '>🧤 Вратарь</option>' +
@@ -175,6 +175,8 @@
         var type = document.getElementById('ev-type').value;
         var location = document.getElementById('ev-location').value.trim();
         if (!title || !date) { alert('Заполните название и дату'); return; }
+        if (title.length > 30) { alert('Название слишком длинное (максимум 30 символов)'); return; }
+        if (location.length > 50) { alert('Место проведения слишком длинное (максимум 50 символов)'); return; }
         this.textContent = 'Сохраняем...';
         var r = await API.addEvent({ title: title, event_date: date, event_type: type, location: location });
         if (r.success) Router.navigate('/dashboard');

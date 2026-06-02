@@ -2,10 +2,8 @@
     <h1>⚽ Моя Команда</h1>
     <p class="subtitle" id="greeting"></p>
 
-    <!-- Список существующих команд -->
     <div id="teams-list"></div>
 
-    <!-- Кнопки для добавления новой команды -->
     <div style="margin-top:20px;">
         <p style="color:#666; font-size:14px; margin-bottom:12px;">Добавить новую команду:</p>
         <div class="option-card" id="create-team-btn" style="margin-bottom:12px;">
@@ -25,23 +23,22 @@
 
 <script>
 (function() {
-    console.log('[SelectTeam] Fragment loaded');
     var data = Router.currentData || {};
 
     if (data.first_name) {
+        // textContent безопасен
         document.getElementById('greeting').textContent = 'Привет, ' + data.first_name + '!';
     }
 
-    // Показываем команды пользователя
     var teamsList = document.getElementById('teams-list');
     if (data.teams && data.teams.length > 0) {
         var html = '<p style="color:#666; font-size:14px; margin-bottom:12px;">Ваши команды:</p>';
         data.teams.forEach(function(team) {
-            html += '<div class="option-card team-select-card" data-team-id="' + team.id + '" style="margin-bottom:12px;">' +
+            html += '<div class="option-card team-select-card" data-team-id="' + parseInt(team.id) + '" style="margin-bottom:12px;">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;">' +
                 '<div>' +
-                '<div style="font-size:18px;font-weight:700;color:#333;">' + team.name + '</div>' +
-                (team.city ? '<div style="font-size:13px;color:#666;">📍 ' + team.city + '</div>' : '') +
+                '<div style="font-size:18px;font-weight:700;color:#333;">' + escapeHtml(team.name) + '</div>' +
+                (team.city ? '<div style="font-size:13px;color:#666;">📍 ' + escapeHtml(team.city) + '</div>' : '') +
                 '</div>' +
                 '<span class="btn' + (team.role === 'coach' ? '' : ' btn-secondary') + '">' +
                 (team.role === 'coach' ? '🎯 Тренер' : '👤 Игрок') +
@@ -51,7 +48,6 @@
         });
         teamsList.innerHTML = html;
 
-        // Клик по команде
         document.querySelectorAll('.team-select-card').forEach(function(card) {
             card.onclick = async function() {
                 var teamId = parseInt(this.getAttribute('data-team-id'));

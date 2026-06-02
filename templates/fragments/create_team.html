@@ -4,11 +4,11 @@
 
     <div class="form-group">
         <label>Название команды *</label>
-        <input type="text" id="team_name" required placeholder="Например: FC Spartak">
+        <input type="text" id="team_name" maxlength="30" required placeholder="Например: Спартак">
     </div>
     <div class="form-group">
         <label>Город</label>
-        <input type="text" id="city" placeholder="Например: Москва">
+        <input type="text" id="city" maxlength="30" placeholder="Например: Москва">
     </div>
     <button id="submit-btn" class="btn-submit">Далее →</button>
     <a id="back-btn" class="back-link">← Назад</a>
@@ -31,15 +31,22 @@
             document.getElementById('error-msg').style.display = 'block';
             return;
         }
+        if (teamName.length > 30) {
+            document.getElementById('error-msg').textContent = 'Название слишком длинное (максимум 30 символов)';
+            document.getElementById('error-msg').style.display = 'block';
+            return;
+        }
+        if (city.length > 30) {
+            document.getElementById('error-msg').textContent = 'Название города слишком длинное (максимум 30 символов)';
+            document.getElementById('error-msg').style.display = 'block';
+            return;
+        }
 
         document.getElementById('submit-btn').textContent = 'Создаём...';
         document.getElementById('submit-btn').disabled = true;
 
-        // Создаём команду с базовым тарифом по умолчанию
-        // Тариф выберем на следующем экране
         var result = await API.createTeam({ team_name: teamName, city: city, stats_level: 'basic' });
         if (result.success) {
-            // Переходим на выбор тарифа
             Router.navigate('/select-stats');
         } else {
             document.getElementById('error-msg').textContent = 'Ошибка: ' + (result.error || 'неизвестная ошибка');

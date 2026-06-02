@@ -1,4 +1,18 @@
 /**
+ * Экранирует HTML для безопасной вставки в DOM.
+ * Защита от XSS — обязательно применять ко всем пользовательским данным.
+ */
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+/**
  * SPA Router — навигация без перезагрузки страницы
  */
 const Router = {
@@ -32,19 +46,12 @@ const Router = {
         }
 
         try {
-            // Собираем параметры запроса
-            var params = { route: route, uid: API.userId, team_id: API.currentTeamId };
+            var body = { route: route };
             if (extraParams) {
-                Object.assign(params, extraParams);
+                Object.assign(body, extraParams);
             }
 
-            const res = await fetch('/api/fragment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params)
-            });
-
-            const result = await res.json();
+            const result = await API.post('/api/fragment', body);
 
             if (result.redirect) {
                 console.log('[Router] Redirect to:', result.redirect);
@@ -59,7 +66,7 @@ const Router = {
 
             if (result.error && !result.html) {
                 this.container.innerHTML =
-                    '<div style="text-align:center;padding:40px;color:red;">❌ ' + result.error + '</div>';
+                    '<div style="text-align:center;padding:40px;color:red;">❌ ' + escapeHtml(result.error) + '</div>';
                 this.container.style.opacity = '1';
                 return;
             }
