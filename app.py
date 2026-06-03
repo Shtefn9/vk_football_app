@@ -912,7 +912,10 @@ def api_fragment():
             return jsonify({'html': render_template('fragments/coach_dashboard.html'), 'data': data})
         else:
             position = ut.position or 'forward'
-            my_stats = MatchStat.query.filter_by(player_id=user.id).all()
+            my_stats = MatchStat.query.join(Event).filter(
+                MatchStat.player_id == user.id,
+                Event.team_id == team_id
+            ).all()
             total_stats = {
                 'games': len(set(s.event_id for s in my_stats)),
                 'goals': sum(s.goals for s in my_stats),
