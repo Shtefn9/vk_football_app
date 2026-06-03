@@ -86,6 +86,10 @@ const API = {
         return await this.post('/api/save-stats', data);
     },
 
+    toggleAttendance: async function(data) {
+    return await this.post('/api/toggle-attendance', data);
+},
+
     leaveTeam: async function() {
         await this.post('/api/leave-team', {});
         this.currentTeamId = null;

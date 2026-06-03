@@ -80,22 +80,19 @@ function showTab(name) {
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
             var isMatch = e.event_type === 'match';
-            return '<div class="event ' + (isMatch ? 'event-clickable' : '') + '" ' +
-                (isMatch ? 'data-event-id="' + parseInt(e.id) + '"' : '') + '>' +
-                (isMatch ? '<span class="event-arrow">›</span>' : '') +
+            return '<div class="event event-clickable" data-event-id="' + parseInt(e.id) + '" data-event-type="' + escapeHtml(e.event_type) + '">' +
+                '<span class="event-arrow">›</span>' +
                 '<div class="event-title">' + (isMatch ? '⚽' : '🏃') + ' ' + escapeHtml(e.title) + '</div>' +
                 '<div class="event-date">' + escapeHtml(e.event_date) + '</div>' +
                 (e.location ? '<div class="event-location">📍 ' + escapeHtml(e.location) + '</div>' : '') +
                 (isMatch && e.has_stats ? '<div style="font-size:12px;color:#4caf50;margin-top:4px;">✓ Статистика внесена</div>' : '') +
-                (isMatch && !e.has_stats ? '<div style="font-size:12px;color:#bbb;margin-top:4px;">— Статистика ещё не внесена</div>' : '') +
                 '</div>';
         }).join('');
         document.querySelectorAll('.event-clickable').forEach(function(el) {
             el.onclick = function() {
-                Router.navigate('/player-match-stats', {
-                    event_id: parseInt(this.getAttribute('data-event-id')),
-                    stats_level: statsLevel
-                });
+                var eventId = parseInt(this.getAttribute('data-event-id'));
+                var eventType = this.getAttribute('data-event-type');
+                Router.navigate('/event-detail', { event_id: eventId });
             };
         });
     } else {

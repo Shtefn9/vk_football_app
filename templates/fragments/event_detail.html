@@ -1,67 +1,234 @@
 <style>
 .player-row { display:flex; justify-content:space-between; align-items:center; padding:14px 15px; border:1px solid #e5ebf1; border-radius:10px; margin-bottom:8px; cursor:pointer; transition:border-color 0.2s; }
-.player-row:hover { border-color:#667eea; }
+.player-row.no-click { cursor:default; }
+.player-row:hover:not(.no-click) { border-color:#667eea; }
 .player-row-name { font-weight:600; color:#333; }
 .player-row-right { text-align:right; }
 .player-position { font-size:12px; color:#888; }
+.player-reason { font-size:12px; color:#999; font-style:italic; margin-top:2px; }
 .has-stats { color:#4caf50; font-size:13px; }
 .no-stats { color:#bbb; font-size:13px; }
 .back-btn-top { background:none; border:none; color:#667eea; font-size:15px; cursor:pointer; padding:0; margin-bottom:15px; display:block; }
+.section-title { font-size:15px; font-weight:700; color:#333; margin:20px 0 10px; }
+.attendance-block { background:#f8f9ff; border-radius:12px; padding:16px; margin-bottom:20px; }
+.attendance-status { display:flex; gap:10px; margin-top:12px; }
+.att-btn { flex:1; padding:12px; border:2px solid #e5ebf1; border-radius:10px; background:white; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.2s; }
+.att-btn.going { color:#4caf50; }
+.att-btn.going.active { background:#e8f5e9; border-color:#4caf50; }
+.att-btn.not-going { color:#c62828; }
+.att-btn.not-going.active { background:#ffebee; border-color:#c62828; }
+.reason-input { width:100%; padding:10px; border:1px solid #e5ebf1; border-radius:8px; font-size:14px; margin-top:10px; box-sizing:border-box; }
+.my-reason { margin-top:10px; padding:10px; background:white; border-radius:8px; font-size:13px; color:#555; }
+.go-to-stats-btn { display:block; width:100%; padding:12px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:20px; text-align:center; }
 </style>
 
 <div class="container">
     <button class="back-btn-top" id="back-btn">← Назад</button>
     <div id="event-header" style="margin-bottom:20px;"></div>
-    <h2>👥 Статистика игроков</h2>
-    <p style="color:#666;font-size:14px;margin-bottom:15px;">Нажмите на игрока, чтобы внести статистику</p>
-    <div id="players-list"></div>
+
+    <!-- Блок отметки игрока (только для игрока) -->
+    <div id="player-attendance" style="display:none;" class="attendance-block">
+        <div style="font-weight:600;color:#333;font-size:15px;">Ты придёшь?</div>
+        <div class="attendance-status">
+            <button class="att-btn going" id="btn-going">+ Приду</button>
+            <button class="att-btn not-going" id="btn-not-going">− Не приду</button>
+        </div>
+        <div id="reason-block" style="display:none; margin-top:12px;">
+            <input type="text" id="reason-input" class="reason-input" placeholder="Укажи причину (макс. 100 символов)" maxlength="100">
+            <button class="att-btn not-going" id="btn-confirm-reason" style="margin-top:8px;width:100%;">Сохранить</button>
+        </div>
+        <div id="my-status-display"></div>
+    </div>
+
+    <!-- Кнопка перехода к статистике (только для матчей у игрока) -->
+    <button id="go-to-stats" class="go-to-stats-btn" style="display:none;">📊 Моя статистика матча</button>
+
+    <!-- Для тренера: списки игроков -->
+    <div id="coach-view" style="display:none;">
+        <div id="going-list-block">
+            <div class="section-title">✅ Придут (<span id="going-count">0</span>)</div>
+            <div id="going-list"></div>
+        </div>
+        <div id="not-going-list-block" style="margin-top:20px;">
+            <div class="section-title">❌ Не придут (<span id="not-going-count">0</span>)</div>
+            <div id="not-going-list"></div>
+        </div>
+        <div id="stats-block" style="display:none; margin-top:20px;">
+            <div class="section-title">👥 Внести статистику</div>
+            <p style="color:#666;font-size:13px;margin-bottom:10px;">Нажмите на игрока чтобы внести статистику матча</p>
+            <div id="stats-players-list"></div>
+        </div>
+    </div>
 </div>
 
 <script>
 (function() {
     var data = Router.currentData || {};
+    var isCoach = data.is_coach;
+    var isMatch = data.event && data.event.event_type === 'match';
+    var myStatus = data.my_status;
+    var myReason = data.my_reason;
 
+    // Заголовок события
     if (data.event) {
         document.getElementById('event-header').innerHTML =
             '<div style="background:#f8f9ff;border-radius:12px;padding:15px;">' +
-            '<div style="font-size:18px;font-weight:700;color:#333;">' + (data.event.event_type === 'match' ? '⚽' : '🏃') + ' ' + escapeHtml(data.event.title) + '</div>' +
+            '<div style="font-size:18px;font-weight:700;color:#333;">' + (isMatch ? '⚽' : '🏃') + ' ' + escapeHtml(data.event.title) + '</div>' +
             '<div style="color:#667eea;font-size:14px;margin-top:4px;">' + escapeHtml(data.event.event_date) + '</div>' +
             (data.event.location ? '<div style="color:#888;font-size:13px;">📍 ' + escapeHtml(data.event.location) + '</div>' : '') +
             '</div>';
     }
 
-    var playersList = document.getElementById('players-list');
-    if (data.players && data.players.length > 0) {
-        playersList.innerHTML = data.players.map(function(p) {
-            return '<div class="player-row" data-player-id="' + parseInt(p.id) + '" data-position="' + escapeHtml(p.position) + '">' +
-                '<div>' +
-                '<div class="player-row-name">' + escapeHtml(p.first_name) + ' ' + escapeHtml(p.last_name) + '</div>' +
-                '<div class="player-position">' + escapeHtml(p.position_label) + '</div>' +
-                '</div>' +
-                '<div class="player-row-right">' +
-                '<div class="' + (p.has_stats ? 'has-stats' : 'no-stats') + '">' + (p.has_stats ? '✓ Заполнено' : '— Нет данных') + '</div>' +
-                '</div>' +
-                '</div>';
-        }).join('');
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/dashboard');
+    };
 
-        document.querySelectorAll('.player-row').forEach(function(row) {
-            row.onclick = function() {
-                var playerId = parseInt(this.getAttribute('data-player-id'));
-                // Имя игрока берём из data.players, а не из DOM-атрибута
-                var player = data.players.find(function(p) { return p.id === playerId; });
-                Router.navigate('/edit-stats', {
+    if (isCoach) {
+        // ─── ВЗГЛЯД ТРЕНЕРА ───
+        document.getElementById('coach-view').style.display = 'block';
+
+        var goingList = document.getElementById('going-list');
+        var notGoingList = document.getElementById('not-going-list');
+        document.getElementById('going-count').textContent = (data.going || []).length;
+        document.getElementById('not-going-count').textContent = (data.not_going || []).length;
+
+        if (data.going && data.going.length > 0) {
+            goingList.innerHTML = data.going.map(function(p) {
+                return '<div class="player-row no-click">' +
+                    '<div>' +
+                    '<div class="player-row-name">' + escapeHtml(p.first_name) + ' ' + escapeHtml(p.last_name) + '</div>' +
+                    '<div class="player-position">' + escapeHtml(p.position_label) + '</div>' +
+                    '</div>' +
+                    '<div style="color:#4caf50;font-size:18px;">+</div>' +
+                    '</div>';
+            }).join('');
+        } else {
+            goingList.innerHTML = '<p style="color:#999;font-size:13px;">Пока никто не записался</p>';
+        }
+
+        if (data.not_going && data.not_going.length > 0) {
+            notGoingList.innerHTML = data.not_going.map(function(p) {
+                return '<div class="player-row no-click">' +
+                    '<div style="flex:1;">' +
+                    '<div class="player-row-name">' + escapeHtml(p.first_name) + ' ' + escapeHtml(p.last_name) + '</div>' +
+                    '<div class="player-position">' + escapeHtml(p.position_label) + '</div>' +
+                    (p.attendance_reason ? '<div class="player-reason">«' + escapeHtml(p.attendance_reason) + '»</div>' : '') +
+                    '</div>' +
+                    '<div style="color:#c62828;font-size:18px;">−</div>' +
+                    '</div>';
+            }).join('');
+        } else {
+            notGoingList.innerHTML = '<p style="color:#999;font-size:13px;">Никто не отказался</p>';
+        }
+
+        // Для матча показываем блок ввода статистики
+        if (isMatch) {
+            document.getElementById('stats-block').style.display = 'block';
+            var statsList = document.getElementById('stats-players-list');
+            if (data.players && data.players.length > 0) {
+                statsList.innerHTML = data.players.map(function(p) {
+                    return '<div class="player-row" data-player-id="' + parseInt(p.id) + '" data-position="' + escapeHtml(p.position) + '">' +
+                        '<div>' +
+                        '<div class="player-row-name">' + escapeHtml(p.first_name) + ' ' + escapeHtml(p.last_name) + '</div>' +
+                        '<div class="player-position">' + escapeHtml(p.position_label) + '</div>' +
+                        '</div>' +
+                        '<div class="player-row-right">' +
+                        '<div class="' + (p.has_stats ? 'has-stats' : 'no-stats') + '">' + (p.has_stats ? '✓ Заполнено' : '— Нет данных') + '</div>' +
+                        '</div>' +
+                        '</div>';
+                }).join('');
+
+                document.querySelectorAll('#stats-players-list .player-row').forEach(function(row) {
+                    row.onclick = function() {
+                        var playerId = parseInt(this.getAttribute('data-player-id'));
+                        var player = data.players.find(function(p) { return p.id === playerId; });
+                        Router.navigate('/edit-stats', {
+                            event_id: data.event.id,
+                            player_id: playerId,
+                            player_name: player ? (player.first_name + ' ' + player.last_name) : '',
+                            position: this.getAttribute('data-position'),
+                            stats_level: data.stats_level
+                        });
+                    };
+                });
+            }
+        }
+    } else {
+        // ─── ВЗГЛЯД ИГРОКА ───
+        document.getElementById('player-attendance').style.display = 'block';
+
+        var btnGoing = document.getElementById('btn-going');
+        var btnNotGoing = document.getElementById('btn-not-going');
+        var reasonBlock = document.getElementById('reason-block');
+        var reasonInput = document.getElementById('reason-input');
+        var btnConfirmReason = document.getElementById('btn-confirm-reason');
+        var myStatusDisplay = document.getElementById('my-status-display');
+
+        function updateButtons() {
+            btnGoing.classList.toggle('active', myStatus === 'going');
+            btnNotGoing.classList.toggle('active', myStatus === 'not_going');
+            if (myStatus === 'not_going' && myReason) {
+                myStatusDisplay.innerHTML = '<div class="my-reason">Твоя причина: «' + escapeHtml(myReason) + '»</div>';
+            } else {
+                myStatusDisplay.innerHTML = '';
+            }
+        }
+        updateButtons();
+
+        btnGoing.onclick = async function() {
+            reasonBlock.style.display = 'none';
+            var result = await API.toggleAttendance({ event_id: data.event.id, status: 'going' });
+            if (result.success) {
+                myStatus = 'going';
+                myReason = null;
+                updateButtons();
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            }
+        };
+
+        btnNotGoing.onclick = function() {
+            reasonBlock.style.display = 'block';
+            reasonInput.focus();
+        };
+
+        btnConfirmReason.onclick = async function() {
+            var reason = reasonInput.value.trim();
+            if (!reason) {
+                alert('Укажи причину');
+                return;
+            }
+            if (/[<>]/.test(reason)) {
+                alert('Недопустимые символы в причине');
+                return;
+            }
+            var result = await API.toggleAttendance({
+                event_id: data.event.id,
+                status: 'not_going',
+                reason: reason
+            });
+            if (result.success) {
+                myStatus = 'not_going';
+                myReason = reason;
+                reasonBlock.style.display = 'none';
+                reasonInput.value = '';
+                updateButtons();
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            }
+        };
+
+        // Кнопка перехода к статистике (только для матчей)
+        if (isMatch) {
+            var goToStatsBtn = document.getElementById('go-to-stats');
+            goToStatsBtn.style.display = 'block';
+            goToStatsBtn.onclick = function() {
+                Router.navigate('/player-match-stats', {
                     event_id: data.event.id,
-                    player_id: playerId,
-                    player_name: player ? (player.first_name + ' ' + player.last_name) : '',
-                    position: this.getAttribute('data-position'),
                     stats_level: data.stats_level
                 });
             };
-        });
-    } else {
-        playersList.innerHTML = '<p class="empty-state">В команде пока нет игроков.</p>';
+        }
     }
-
-    document.getElementById('back-btn').onclick = function() { Router.navigate('/dashboard'); };
 })();
 </script>

@@ -13,6 +13,7 @@ import base64
 from urllib.parse import parse_qsl, urlencode
 from datetime import datetime, timedelta, timezone
 from yookassa import Configuration, Payment
+from models import User, Team, UserTeam, Event, MatchStat, EventAttendance
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -793,21 +794,55 @@ def api_fragment():
         team = db.session.get(Team, event.team_id)
         members = UserTeam.query.filter_by(team_id=event.team_id, role='player').all()
         pos_labels = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}
-        players = []
+
+        # Загружаем все статусы посещения по событию
+        attendances = EventAttendance.query.filter_by(event_id=event_id).all()
+        att_map = {a.user_id: a for a in attendances}
+
+        going = []
+        not_going = []
+        all_players = []
+
         for m in members:
             p = db.session.get(User, m.user_id)
-            if p:
-                existing = MatchStat.query.filter_by(player_id=p.id, event_id=event_id).first()
-                players.append({'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
-                                'position': m.position or 'forward',
-                                'position_label': pos_labels.get(m.position, '⚡ Нападающий'),
-                                'has_stats': existing is not None})
+            if not p:
+                continue
+            existing = MatchStat.query.filter_by(player_id=p.id, event_id=event_id).first()
+            att = att_map.get(p.id)
+            status = att.status if att else None
+            reason = att.reason if att else None
+            player_data = {
+                'id': p.id, 'first_name': p.first_name, 'last_name': p.last_name,
+                'position': m.position or 'forward',
+                'position_label': pos_labels.get(m.position, '⚡ Нападающий'),
+                'has_stats': existing is not None,
+                'attendance_status': status,
+                'attendance_reason': reason
+            }
+            all_players.append(player_data)
+            if status == 'going':
+                going.append(player_data)
+            elif status == 'not_going':
+                not_going.append(player_data)
+
+        # Текущий статус посещения для пользователя (если игрок)
+        my_attendance = att_map.get(user.id)
+        my_status = my_attendance.status if my_attendance else None
+        my_reason = my_attendance.reason if my_attendance else None
+
         return jsonify({'html': render_template('fragments/event_detail.html'),
-                        'data': {'event': {'id': event.id, 'title': event.title,
-                                           'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                                           'event_type': event.event_type, 'location': event.location},
-                                 'players': players,
-                                 'stats_level': team.effective_stats_level if team else 'basic'}})
+                        'data': {
+                            'event': {'id': event.id, 'title': event.title,
+                                      'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
+                                      'event_type': event.event_type, 'location': event.location},
+                            'players': all_players,
+                            'going': going,
+                            'not_going': not_going,
+                            'my_status': my_status,
+                            'my_reason': my_reason,
+                            'is_coach': ut.role == 'coach',
+                            'stats_level': team.effective_stats_level if team else 'basic'
+                        }})
 
     if route == '/edit-stats':
         event_id = body.get('event_id')
@@ -958,6 +993,63 @@ def api_fragment():
         })
 
     return jsonify({'error': 'Not found'}), 404
+
+@app.route('/api/toggle-attendance', methods=['POST'])
+def api_toggle_attendance():
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        data = request.get_json()
+        event_id = data.get('event_id')
+        status = data.get('status')  # 'going' / 'not_going' / 'clear'
+        reason = (data.get('reason') or '').strip()[:100]
+
+        if not event_id:
+            return jsonify({'error': 'event_id обязателен'}), 400
+        if status not in ('going', 'not_going', 'clear'):
+            return jsonify({'error': 'Неверный статус'}), 400
+
+        event = db.session.get(Event, int(event_id))
+        if not event:
+            return jsonify({'error': 'Событие не найдено'}), 404
+
+        # Проверка: игрок состоит в команде этого события
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id, role='player').first()
+        if not ut:
+            return jsonify({'error': 'Только игрок команды может отмечаться'}), 403
+
+        if status == 'not_going' and not reason:
+            return jsonify({'error': 'Укажите причину отказа'}), 400
+
+        if not is_safe_text(reason):
+            return jsonify({'error': 'Недопустимые символы в причине'}), 400
+
+        attendance = EventAttendance.query.filter_by(event_id=event_id, user_id=user.id).first()
+
+        if status == 'clear':
+            # Отменить запись (вернуться к статусу "не определился")
+            if attendance:
+                db.session.delete(attendance)
+        else:
+            if attendance:
+                attendance.status = status
+                attendance.reason = reason if status == 'not_going' else None
+                attendance.updated_at = datetime.now()
+            else:
+                attendance = EventAttendance(
+                    event_id=event_id,
+                    user_id=user.id,
+                    status=status,
+                    reason=reason if status == 'not_going' else None
+                )
+                db.session.add(attendance)
+
+        db.session.commit()
+        return jsonify({'success': True, 'status': status})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -80,3 +80,13 @@ class MatchStat(db.Model):
     goal_kicks_total = db.Column(db.Integer, default=0)
     goal_kicks_accurate = db.Column(db.Integer, default=0)
     rating = db.Column(db.Float, default=0.0)
+
+class EventAttendance(db.Model):
+    __tablename__ = 'event_attendance'
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), nullable=False)  # 'going' / 'not_going'
+    reason = db.Column(db.String(100))  # причина отказа, если status='not_going'
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('event_id', 'user_id', name='_event_user_uc'),)
