@@ -24,6 +24,9 @@
 (function() {
     var data = Router.currentData || {};
     var stat = data.stat;
+    document.getElementById('back-btn').onclick = function() {
+        Router.navigate('/dashboard');
+    };
     var statsLevel = data.stats_level || 'basic';
     var position = data.position || 'forward';
 
@@ -122,8 +125,5 @@
 
     content.innerHTML = '<div style="border-radius:12px;padding:0 5px;">' + html + '</div>';
 
-    document.getElementById('back-btn').onclick = function() {
-        Router.navigate('/dashboard');
-    };
 })();
 </script>
