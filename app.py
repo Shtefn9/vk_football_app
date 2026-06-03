@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, session, jsonify, redirect
 from database import db, init_db
-from models import User, Team, UserTeam, Event, MatchStat
+from models import User, Team, UserTeam, Event, MatchStat, EventAttendance
 import random
 import string
 import logging
@@ -13,7 +13,6 @@ import base64
 from urllib.parse import parse_qsl, urlencode
 from datetime import datetime, timedelta, timezone
 from yookassa import Configuration, Payment
-from models import User, Team, UserTeam, Event, MatchStat, EventAttendance
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -64,10 +63,7 @@ def add_headers(response):
 
 
 def verify_vk_launch_params(launch_params_str):
-    """
-    Проверяет HMAC-подпись параметров запуска VK Mini App.
-    Возвращает vk_user_id если подпись валидна, иначе None.
-    """
+    """Проверяет HMAC-подпись параметров запуска VK Mini App."""
     if not VK_SECURE_KEY or not launch_params_str:
         return None
     try:
@@ -97,10 +93,6 @@ def verify_vk_launch_params(launch_params_str):
 
 
 def get_user():
-    """
-    Получает пользователя ТОЛЬКО через проверенную подпись VK.
-    Никогда не доверяет uid из тела.
-    """
     body = request.get_json(silent=True) or {}
     launch_params = body.get('vk_launch_params')
 
@@ -336,7 +328,6 @@ def index():
 
 @app.route('/api/vk-auth', methods=['POST'])
 def api_vk_auth():
-    """vk_id берётся ИСКЛЮЧИТЕЛЬНО из подписанных параметров VK"""
     try:
         body = request.get_json() or {}
         launch_params = body.get('vk_launch_params')
@@ -661,8 +652,22 @@ def api_add_event():
             return jsonify({'error': 'Недопустимые символы в названии или месте'}), 400
         if event_type not in ('match', 'training'):
             return jsonify({'error': 'Неверный тип события'}), 400
+
+        # Валидация даты: формат, не в прошлом, не позже чем через неделю
+        try:
+            event_date = datetime.fromisoformat(data['event_date'])
+        except (ValueError, TypeError, KeyError):
+            return jsonify({'error': 'Неверный формат даты'}), 400
+
+        now = datetime.now()
+        max_allowed = now + timedelta(days=7)
+        if event_date < now:
+            return jsonify({'error': 'Дата события не может быть в прошлом'}), 400
+        if event_date > max_allowed:
+            return jsonify({'error': 'Дата события слишком далеко (максимум через неделю)'}), 400
+
         event = Event(team_id=team_id, title=title,
-                      event_date=datetime.fromisoformat(data['event_date']),
+                      event_date=event_date,
                       event_type=event_type, location=location)
         db.session.add(event)
         db.session.commit()
@@ -737,6 +742,62 @@ def api_save_stats():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/toggle-attendance', methods=['POST'])
+def api_toggle_attendance():
+    user = get_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        data = request.get_json()
+        event_id = data.get('event_id')
+        status = data.get('status')  # 'going' / 'not_going' / 'clear'
+        reason = (data.get('reason') or '').strip()[:100]
+
+        if not event_id:
+            return jsonify({'error': 'event_id обязателен'}), 400
+        if status not in ('going', 'not_going', 'clear'):
+            return jsonify({'error': 'Неверный статус'}), 400
+
+        event = db.session.get(Event, int(event_id))
+        if not event:
+            return jsonify({'error': 'Событие не найдено'}), 404
+
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id, role='player').first()
+        if not ut:
+            return jsonify({'error': 'Только игрок команды может отмечаться'}), 403
+
+        if status == 'not_going' and not reason:
+            return jsonify({'error': 'Укажите причину отказа'}), 400
+
+        if not is_safe_text(reason):
+            return jsonify({'error': 'Недопустимые символы в причине'}), 400
+
+        attendance = EventAttendance.query.filter_by(event_id=event_id, user_id=user.id).first()
+
+        if status == 'clear':
+            if attendance:
+                db.session.delete(attendance)
+        else:
+            if attendance:
+                attendance.status = status
+                attendance.reason = reason if status == 'not_going' else None
+                attendance.updated_at = datetime.now()
+            else:
+                attendance = EventAttendance(
+                    event_id=event_id,
+                    user_id=user.id,
+                    status=status,
+                    reason=reason if status == 'not_going' else None
+                )
+                db.session.add(attendance)
+
+        db.session.commit()
+        return jsonify({'success': True, 'status': status})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/fragment', methods=['POST'])
 def api_fragment():
     body = request.get_json() or {}
@@ -795,7 +856,6 @@ def api_fragment():
         members = UserTeam.query.filter_by(team_id=event.team_id, role='player').all()
         pos_labels = {'goalkeeper': '🧤 Вратарь', 'defender': '🛡 Защитник', 'forward': '⚡ Нападающий'}
 
-        # Загружаем все статусы посещения по событию
         attendances = EventAttendance.query.filter_by(event_id=event_id).all()
         att_map = {a.user_id: a for a in attendances}
 
@@ -825,7 +885,6 @@ def api_fragment():
             elif status == 'not_going':
                 not_going.append(player_data)
 
-        # Текущий статус посещения для пользователя (если игрок)
         my_attendance = att_map.get(user.id)
         my_status = my_attendance.status if my_attendance else None
         my_reason = my_attendance.reason if my_attendance else None
@@ -947,6 +1006,7 @@ def api_fragment():
             return jsonify({'html': render_template('fragments/coach_dashboard.html'), 'data': data})
         else:
             position = ut.position or 'forward'
+            # Статистика игрока только по матчам текущей команды
             my_stats = MatchStat.query.join(Event).filter(
                 MatchStat.player_id == user.id,
                 Event.team_id == team_id
@@ -993,63 +1053,6 @@ def api_fragment():
         })
 
     return jsonify({'error': 'Not found'}), 404
-
-@app.route('/api/toggle-attendance', methods=['POST'])
-def api_toggle_attendance():
-    user = get_user()
-    if not user:
-        return jsonify({'error': 'unauthorized'}), 401
-    try:
-        data = request.get_json()
-        event_id = data.get('event_id')
-        status = data.get('status')  # 'going' / 'not_going' / 'clear'
-        reason = (data.get('reason') or '').strip()[:100]
-
-        if not event_id:
-            return jsonify({'error': 'event_id обязателен'}), 400
-        if status not in ('going', 'not_going', 'clear'):
-            return jsonify({'error': 'Неверный статус'}), 400
-
-        event = db.session.get(Event, int(event_id))
-        if not event:
-            return jsonify({'error': 'Событие не найдено'}), 404
-
-        # Проверка: игрок состоит в команде этого события
-        ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id, role='player').first()
-        if not ut:
-            return jsonify({'error': 'Только игрок команды может отмечаться'}), 403
-
-        if status == 'not_going' and not reason:
-            return jsonify({'error': 'Укажите причину отказа'}), 400
-
-        if not is_safe_text(reason):
-            return jsonify({'error': 'Недопустимые символы в причине'}), 400
-
-        attendance = EventAttendance.query.filter_by(event_id=event_id, user_id=user.id).first()
-
-        if status == 'clear':
-            # Отменить запись (вернуться к статусу "не определился")
-            if attendance:
-                db.session.delete(attendance)
-        else:
-            if attendance:
-                attendance.status = status
-                attendance.reason = reason if status == 'not_going' else None
-                attendance.updated_at = datetime.now()
-            else:
-                attendance = EventAttendance(
-                    event_id=event_id,
-                    user_id=user.id,
-                    status=status,
-                    reason=reason if status == 'not_going' else None
-                )
-                db.session.add(attendance)
-
-        db.session.commit()
-        return jsonify({'success': True, 'status': status})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

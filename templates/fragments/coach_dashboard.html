@@ -96,6 +96,20 @@
 
     document.getElementById('upgrade-item').style.display = 'block';
 
+    function toLocalDatetimeString(d) {
+        var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+               'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    var nowForInput = new Date();
+    var maxForInput = new Date();
+    maxForInput.setDate(maxForInput.getDate() + 7);
+    var evDateInput = document.getElementById('ev-date');
+    if (evDateInput) {
+        evDateInput.min = toLocalDatetimeString(nowForInput);
+        evDateInput.max = toLocalDatetimeString(maxForInput);
+    }
+
     var eventsList = document.getElementById('events-list');
     if (data.events && data.events.length > 0) {
         eventsList.innerHTML = data.events.map(function(e) {
@@ -176,6 +190,16 @@
             alert('Недопустимые символы в названии или месте');
             return;
         }
+
+        // Валидация даты: не в прошлом, не позже чем через неделю
+        var dateObj = new Date(date);
+        var nowDate = new Date();
+        var maxAllowed = new Date();
+        maxAllowed.setDate(maxAllowed.getDate() + 7);
+        if (isNaN(dateObj.getTime())) { alert('Неверный формат даты'); return; }
+        if (dateObj < nowDate) { alert('Дата события не может быть в прошлом'); return; }
+        if (dateObj > maxAllowed) { alert('Дата события слишком далеко (максимум через неделю)'); return; }
+
         this.textContent = 'Сохраняем...';
         var r = await API.addEvent({ title: title, event_date: date, event_type: type, location: location });
         if (r.success) Router.navigate('/dashboard');
