@@ -1,3 +1,15 @@
+<style>
+.team-select-card .team-name-text {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    line-height: 1.3;
+}
+.team-select-card .team-city-text {
+    line-height: 1.3;
+    min-height: 18px;
+}
+</style>
+
 <div class="container start-container">
     <h1>⚽ Моя Команда</h1>
     <p class="subtitle" id="greeting"></p>
@@ -26,7 +38,6 @@
     var data = Router.currentData || {};
 
     if (data.first_name) {
-        // textContent безопасен
         document.getElementById('greeting').textContent = 'Привет, ' + data.first_name + '!';
     }
 
@@ -35,12 +46,12 @@
         var html = '<p style="color:#666; font-size:14px; margin-bottom:12px;">Ваши команды:</p>';
         data.teams.forEach(function(team) {
             html += '<div class="option-card team-select-card" data-team-id="' + parseInt(team.id) + '" style="margin-bottom:12px;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-                '<div>' +
-                '<div style="font-size:18px;font-weight:700;color:#333;">' + escapeHtml(team.name) + '</div>' +
-                (team.city ? '<div style="font-size:13px;color:#666;">📍 ' + escapeHtml(team.city) + '</div>' : '') +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">' +
+                '<div style="flex:1;min-width:0;">' +
+                '<div class="team-name-text" style="font-size:18px;font-weight:700;color:#333;">' + escapeHtml(team.name) + '</div>' +
+                '<div class="team-city-text" style="font-size:13px;color:#666;">' + (team.city ? '📍 ' + escapeHtml(team.city) : '') + '</div>' +
                 '</div>' +
-                '<span class="btn' + (team.role === 'coach' ? '' : ' btn-secondary') + '">' +
+                '<span class="btn' + (team.role === 'coach' ? '' : ' btn-secondary') + '" style="white-space:nowrap;">' +
                 (team.role === 'coach' ? '🎯 Тренер' : '👤 Игрок') +
                 '</span>' +
                 '</div>' +

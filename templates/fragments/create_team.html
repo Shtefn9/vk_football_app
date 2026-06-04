@@ -27,8 +27,11 @@
         var city = document.getElementById('city').value.trim();
         var errEl = document.getElementById('error-msg');
 
-        if (!teamName) {
-            errEl.textContent = 'Введите название команды';
+        // Разрешаем буквы (рус/англ), цифры, пробел, дефис, точку, апостроф
+var validPattern = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-.']+$/;
+
+        if (!teamName || teamName.length < 2) {
+            errEl.textContent = 'Название команды должно содержать минимум 2 символа';
             errEl.style.display = 'block';
             return;
         }
@@ -37,13 +40,23 @@
             errEl.style.display = 'block';
             return;
         }
+        if (!validPattern.test(teamName)) {
+            errEl.textContent = 'Название может содержать только буквы, цифры, пробел, дефис, точку';
+            errEl.style.display = 'block';
+            return;
+        }
+        if (city && city.length < 2) {
+            errEl.textContent = 'Название города должно содержать минимум 2 символа';
+            errEl.style.display = 'block';
+            return;
+        }
         if (city.length > 30) {
             errEl.textContent = 'Название города слишком длинное (максимум 30 символов)';
             errEl.style.display = 'block';
             return;
         }
-        if (/[<>]/.test(teamName) || /[<>]/.test(city)) {
-            errEl.textContent = 'Недопустимые символы в названии или городе';
+        if (city && !validPattern.test(city)) {
+            errEl.textContent = 'Город может содержать только буквы, цифры, пробел, дефис, точку';
             errEl.style.display = 'block';
             return;
         }

@@ -47,6 +47,18 @@ def is_safe_text(text):
         return True
     return not DANGEROUS_PATTERN.search(text)
 
+# Валидация названия команды/города: буквы, цифры, пробел, дефис, точка, апостроф
+VALID_NAME_PATTERN = re.compile(r"^[a-zA-Zа-яА-ЯёЁ0-9\s\-.']+$")
+
+def is_valid_name(text, min_len=2, max_len=30):
+    """Проверяет что имя содержит только разрешённые символы и нужную длину"""
+    if not text:
+        return False
+    text = text.strip()
+    if len(text) < min_len or len(text) > max_len:
+        return False
+    return bool(VALID_NAME_PATTERN.match(text))
+
 
 init_db(app)
 
@@ -450,10 +462,10 @@ def api_create_team():
         data = request.get_json()
         team_name = (data.get('team_name') or '').strip()[:30]
         city = (data.get('city') or '').strip()[:30]
-        if not team_name:
-            return jsonify({'error': 'Название команды обязательно'}), 400
-        if not is_safe_text(team_name) or not is_safe_text(city):
-            return jsonify({'error': 'Недопустимые символы в названии или городе'}), 400
+        if not is_valid_name(team_name, min_len=2, max_len=30):
+            return jsonify({'error': 'Название команды: 2-30 символов, только буквы, цифры, пробел, дефис, точка'}), 400
+        if city and not is_valid_name(city, min_len=2, max_len=30):
+            return jsonify({'error': 'Город: 2-30 символов, только буквы, цифры, пробел, дефис, точка'}), 400
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         team = Team(name=team_name, city=city,
                     join_code=join_code, stats_level=data.get('stats_level', 'basic'))
