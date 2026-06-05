@@ -49,7 +49,12 @@
         <button class="add-event-btn" id="toggle-form-btn">➕ Добавить событие</button>
         <div id="add-event-form" style="display:none; background:#f8f9ff; border-radius:12px; padding:15px; margin-bottom:15px;">
             <div class="form-group"><input type="text" id="ev-title" placeholder="Название события" maxlength="30" required></div>
-            <div class="form-group"><input type="datetime-local" id="ev-date" required></div>
+            <div class="form-group">
+                <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Дата события</label>
+                <input type="date" id="ev-date-only" required style="margin-bottom:8px;">
+                <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Время</label>
+                <input type="time" id="ev-time-only" required>
+            </div>
             <div class="form-group">
                 <select id="ev-type">
                     <option value="training">Тренировка</option>
@@ -104,10 +109,17 @@
     var nowForInput = new Date();
     var maxForInput = new Date();
     maxForInput.setDate(maxForInput.getDate() + 7);
-    var evDateInput = document.getElementById('ev-date');
-    if (evDateInput) {
-        evDateInput.min = toLocalDatetimeString(nowForInput);
-        evDateInput.max = toLocalDatetimeString(maxForInput);
+
+    function toDateString(d) {
+        var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
+    var evDateOnly = document.getElementById('ev-date-only');
+    var evTimeOnly = document.getElementById('ev-time-only');
+    if (evDateOnly) {
+        evDateOnly.min = toDateString(nowForInput);
+        evDateOnly.max = toDateString(maxForInput);
     }
 
     var eventsList = document.getElementById('events-list');
@@ -180,10 +192,13 @@
     };
     document.getElementById('save-event-btn').onclick = async function() {
         var title = document.getElementById('ev-title').value.trim();
-        var date = document.getElementById('ev-date').value;
+        var dateOnly = document.getElementById('ev-date-only').value;
+        var timeOnly = document.getElementById('ev-time-only').value;
+        if (!dateOnly || !timeOnly) { alert('Заполните дату и время'); return; }
+        var date = dateOnly + 'T' + timeOnly;
         var type = document.getElementById('ev-type').value;
         var location = document.getElementById('ev-location').value.trim();
-        if (!title || !date) { alert('Заполните название и дату'); return; }
+        if (!title) { alert('Заполните название'); return; }
         if (title.length > 30) { alert('Название слишком длинное (максимум 30 символов)'); return; }
         if (location.length > 30) { alert('Место проведения слишком длинное (максимум 30 символов)'); return; }
         if (/[<>]/.test(title) || /[<>]/.test(location)) {
