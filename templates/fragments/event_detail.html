@@ -26,9 +26,9 @@
     <button class="back-btn-top" id="back-btn">← Назад</button>
     <div id="event-header" style="margin-bottom:20px;"></div>
 
-    <!-- Блок отметки игрока (только для игрока) -->
+    <!-- Блок отметки посещения (для игрока и тренера который тоже играет) -->
     <div id="player-attendance" style="display:none;" class="attendance-block">
-        <div style="font-weight:600;color:#333;font-size:15px;">Ты придёшь?</div>
+        <div style="font-weight:600;color:#333;font-size:15px;" id="attendance-question">Ты придёшь?</div>
         <div class="attendance-status">
             <button class="att-btn going" id="btn-going">+ Приду</button>
             <button class="att-btn not-going" id="btn-not-going">− Не приду</button>
@@ -82,6 +82,79 @@
     document.getElementById('back-btn').onclick = function() {
         Router.navigate('/dashboard');
     };
+
+    // ─── БЛОК ОТМЕТКИ (доступен и игроку, и тренеру который тоже играет) ───
+    function initAttendance() {
+        document.getElementById('player-attendance').style.display = 'block';
+
+        // Для тренера меняем текст на более подходящий
+        if (isCoach) {
+            document.getElementById('attendance-question').textContent = 'Вы тоже играете?';
+        }
+
+        var btnGoing = document.getElementById('btn-going');
+        var btnNotGoing = document.getElementById('btn-not-going');
+        var reasonBlock = document.getElementById('reason-block');
+        var reasonInput = document.getElementById('reason-input');
+        var btnConfirmReason = document.getElementById('btn-confirm-reason');
+        var myStatusDisplay = document.getElementById('my-status-display');
+
+        function updateButtons() {
+            btnGoing.classList.toggle('active', myStatus === 'going');
+            btnNotGoing.classList.toggle('active', myStatus === 'not_going');
+            if (myStatus === 'not_going' && myReason) {
+                myStatusDisplay.innerHTML = '<div class="my-reason">Причина: «' + escapeHtml(myReason) + '»</div>';
+            } else {
+                myStatusDisplay.innerHTML = '';
+            }
+        }
+        updateButtons();
+
+        btnGoing.onclick = async function() {
+            reasonBlock.style.display = 'none';
+            var result = await API.toggleAttendance({ event_id: data.event.id, status: 'going' });
+            if (result.success) {
+                myStatus = 'going';
+                myReason = null;
+                updateButtons();
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            }
+        };
+
+        btnNotGoing.onclick = function() {
+            reasonBlock.style.display = 'block';
+            reasonInput.focus();
+        };
+
+        btnConfirmReason.onclick = async function() {
+            var reason = reasonInput.value.trim();
+            if (!reason) {
+                alert('Укажи причину');
+                return;
+            }
+            if (/[<>]/.test(reason)) {
+                alert('Недопустимые символы в причине');
+                return;
+            }
+            var result = await API.toggleAttendance({
+                event_id: data.event.id,
+                status: 'not_going',
+                reason: reason
+            });
+            if (result.success) {
+                myStatus = 'not_going';
+                myReason = reason;
+                reasonBlock.style.display = 'none';
+                reasonInput.value = '';
+                updateButtons();
+            } else {
+                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
+            }
+        };
+    }
+
+    initAttendance();
 
     if (isCoach) {
         // ─── ВЗГЛЯД ТРЕНЕРА ───
@@ -155,69 +228,6 @@
         }
     } else {
         // ─── ВЗГЛЯД ИГРОКА ───
-        document.getElementById('player-attendance').style.display = 'block';
-
-        var btnGoing = document.getElementById('btn-going');
-        var btnNotGoing = document.getElementById('btn-not-going');
-        var reasonBlock = document.getElementById('reason-block');
-        var reasonInput = document.getElementById('reason-input');
-        var btnConfirmReason = document.getElementById('btn-confirm-reason');
-        var myStatusDisplay = document.getElementById('my-status-display');
-
-        function updateButtons() {
-            btnGoing.classList.toggle('active', myStatus === 'going');
-            btnNotGoing.classList.toggle('active', myStatus === 'not_going');
-            if (myStatus === 'not_going' && myReason) {
-                myStatusDisplay.innerHTML = '<div class="my-reason">Твоя причина: «' + escapeHtml(myReason) + '»</div>';
-            } else {
-                myStatusDisplay.innerHTML = '';
-            }
-        }
-        updateButtons();
-
-        btnGoing.onclick = async function() {
-            reasonBlock.style.display = 'none';
-            var result = await API.toggleAttendance({ event_id: data.event.id, status: 'going' });
-            if (result.success) {
-                myStatus = 'going';
-                myReason = null;
-                updateButtons();
-            } else {
-                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
-            }
-        };
-
-        btnNotGoing.onclick = function() {
-            reasonBlock.style.display = 'block';
-            reasonInput.focus();
-        };
-
-        btnConfirmReason.onclick = async function() {
-            var reason = reasonInput.value.trim();
-            if (!reason) {
-                alert('Укажи причину');
-                return;
-            }
-            if (/[<>]/.test(reason)) {
-                alert('Недопустимые символы в причине');
-                return;
-            }
-            var result = await API.toggleAttendance({
-                event_id: data.event.id,
-                status: 'not_going',
-                reason: reason
-            });
-            if (result.success) {
-                myStatus = 'not_going';
-                myReason = reason;
-                reasonBlock.style.display = 'none';
-                reasonInput.value = '';
-                updateButtons();
-            } else {
-                alert('Ошибка: ' + (result.error || 'неизвестная ошибка'));
-            }
-        };
-
         // Кнопка перехода к статистике (только для матчей)
         if (isMatch) {
             var goToStatsBtn = document.getElementById('go-to-stats');

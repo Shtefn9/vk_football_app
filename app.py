@@ -774,9 +774,9 @@ def api_toggle_attendance():
         if not event:
             return jsonify({'error': 'Событие не найдено'}), 404
 
-        ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id, role='player').first()
+        ut = UserTeam.query.filter_by(user_id=user.id, team_id=event.team_id).first()
         if not ut:
-            return jsonify({'error': 'Только игрок команды может отмечаться'}), 403
+            return jsonify({'error': 'Только член команды может отмечаться'}), 403
 
         if status == 'not_going' and not reason:
             return jsonify({'error': 'Укажите причину отказа'}), 400
