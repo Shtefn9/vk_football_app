@@ -19,7 +19,8 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'football.db')
+db_path = os.environ.get('DATABASE_PATH', os.path.join(basedir, 'football.db'))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'vk_football_secret_2024'
 app.config['SESSION_COOKIE_SECURE'] = False
