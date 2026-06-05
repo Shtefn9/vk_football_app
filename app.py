@@ -778,6 +778,10 @@ def api_toggle_attendance():
         if not ut:
             return jsonify({'error': 'Только член команды может отмечаться'}), 403
 
+        # Запрет отметки на уже начавшиеся события
+        if event.event_date <= datetime.now():
+            return jsonify({'error': 'Событие уже началось — изменить отметку нельзя'}), 400
+
         if status == 'not_going' and not reason:
             return jsonify({'error': 'Укажите причину отказа'}), 400
 
@@ -905,7 +909,8 @@ def api_fragment():
                         'data': {
                             'event': {'id': event.id, 'title': event.title,
                                       'event_date': event.event_date.strftime('%d.%m.%Y %H:%M'),
-                                      'event_type': event.event_type, 'location': event.location},
+                                      'event_type': event.event_type, 'location': event.location,
+                                      'is_past': event.event_date <= datetime.now()},
                             'players': all_players,
                             'going': going,
                             'not_going': not_going,

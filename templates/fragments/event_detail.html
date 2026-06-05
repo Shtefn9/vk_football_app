@@ -20,13 +20,14 @@
 .reason-input { width:100%; padding:10px; border:1px solid #e5ebf1; border-radius:8px; font-size:14px; margin-top:10px; box-sizing:border-box; }
 .my-reason { margin-top:10px; padding:10px; background:white; border-radius:8px; font-size:13px; color:#555; }
 .go-to-stats-btn { display:block; width:100%; padding:12px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:20px; text-align:center; }
+.past-notice { background:#fff3e0; color:#e65100; padding:10px 14px; border-radius:8px; font-size:13px; margin-top:10px; }
 </style>
 
 <div class="container">
     <button class="back-btn-top" id="back-btn">← Назад</button>
     <div id="event-header" style="margin-bottom:20px;"></div>
 
-    <!-- Блок отметки посещения (для игрока и тренера который тоже играет) -->
+    <!-- Блок отметки посещения -->
     <div id="player-attendance" style="display:none;" class="attendance-block">
         <div style="font-weight:600;color:#333;font-size:15px;" id="attendance-question">Ты придёшь?</div>
         <div class="attendance-status">
@@ -68,6 +69,7 @@
     var isMatch = data.event && data.event.event_type === 'match';
     var myStatus = data.my_status;
     var myReason = data.my_reason;
+    var isPast = data.event && data.event.is_past;
 
     // Заголовок события
     if (data.event) {
@@ -87,17 +89,37 @@
     function initAttendance() {
         document.getElementById('player-attendance').style.display = 'block';
 
-        // Для тренера меняем текст на более подходящий
-        if (isCoach) {
-            document.getElementById('attendance-question').textContent = 'Вы тоже играете?';
-        }
-
         var btnGoing = document.getElementById('btn-going');
         var btnNotGoing = document.getElementById('btn-not-going');
         var reasonBlock = document.getElementById('reason-block');
         var reasonInput = document.getElementById('reason-input');
         var btnConfirmReason = document.getElementById('btn-confirm-reason');
         var myStatusDisplay = document.getElementById('my-status-display');
+
+        // Если событие уже началось — блокируем кнопки и показываем статус
+        if (isPast) {
+            document.getElementById('attendance-question').textContent = 'Событие уже прошло';
+            btnGoing.disabled = true;
+            btnNotGoing.disabled = true;
+            btnGoing.style.opacity = '0.5';
+            btnNotGoing.style.opacity = '0.5';
+            btnGoing.style.cursor = 'not-allowed';
+            btnNotGoing.style.cursor = 'not-allowed';
+            if (myStatus === 'going') {
+                btnGoing.classList.add('active');
+            } else if (myStatus === 'not_going') {
+                btnNotGoing.classList.add('active');
+                if (myReason) {
+                    myStatusDisplay.innerHTML = '<div class="my-reason">Причина: «' + escapeHtml(myReason) + '»</div>';
+                }
+            }
+            return;
+        }
+
+        // Для тренера меняем текст на более подходящий
+        if (isCoach) {
+            document.getElementById('attendance-question').textContent = 'Вы тоже играете?';
+        }
 
         function updateButtons() {
             btnGoing.classList.toggle('active', myStatus === 'going');
@@ -228,7 +250,6 @@
         }
     } else {
         // ─── ВЗГЛЯД ИГРОКА ───
-        // Кнопка перехода к статистике (только для матчей)
         if (isMatch) {
             var goToStatsBtn = document.getElementById('go-to-stats');
             goToStatsBtn.style.display = 'block';
