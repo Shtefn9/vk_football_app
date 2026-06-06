@@ -60,7 +60,16 @@ def is_valid_name(text, min_len=2, max_len=30):
         return False
     return bool(VALID_NAME_PATTERN.match(text))
 
+VALID_CITY_PATTERN = re.compile(r"^[a-zA-Zа-яА-ЯёЁ\s\-]+$")
 
+def is_valid_city(text, min_len=2, max_len=30):
+    """Проверяет название города — только буквы, пробел и дефис"""
+    if not text:
+        return True  # город не обязателен
+    text = text.strip()
+    if len(text) < min_len or len(text) > max_len:
+        return False
+    return bool(VALID_CITY_PATTERN.match(text))
 init_db(app)
 
 
@@ -465,8 +474,8 @@ def api_create_team():
         city = (data.get('city') or '').strip()[:30]
         if not is_valid_name(team_name, min_len=2, max_len=30):
             return jsonify({'error': 'Название команды: 2-30 символов, только буквы, цифры, пробел, дефис, точка'}), 400
-        if city and not is_valid_name(city, min_len=2, max_len=30):
-            return jsonify({'error': 'Город: 2-30 символов, только буквы, цифры, пробел, дефис, точка'}), 400
+        if city and not is_valid_city(city):
+            return jsonify({'error': 'Город: только буквы, пробел и дефис (например: Москва)'}), 400
         join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         team = Team(name=team_name, city=city,
                     join_code=join_code, stats_level=data.get('stats_level', 'basic'))
